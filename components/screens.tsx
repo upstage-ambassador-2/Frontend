@@ -868,12 +868,12 @@ export function HistoryScreen({
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page history-page">
       <PageTitle
         title="히스토리"
         desc="생성된 초안과 Gmail 발송 상태를 사람과 이메일 기준으로 확인합니다."
         action={
-          <div className="row gap-2">
+          <div className="history-actions">
             <label className="history-filter">
               <span>사람</span>
               <select
@@ -897,7 +897,7 @@ export function HistoryScreen({
         }
       />
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card history-card">
         <div className="history-row is-head">
           <span></span>
           <span>제목 / 미리보기</span>
@@ -907,41 +907,68 @@ export function HistoryScreen({
         </div>
         {visibleHistory.map((item) => {
           const target = targetFor(item);
+          const subject = item.subject || item.subj || "제목 없음";
+          const preview = item.prev || item.body || item.brief || "미리보기 없음";
+          const status = item.status || "draft";
+          const detailId = `history-detail-${item.id}`;
           return (
             <div key={item.id}>
               <button
                 type="button"
                 className="history-row history-button"
                 onClick={() => setOpenId(openId === item.id ? null : item.id)}
+                aria-expanded={openId === item.id}
+                aria-controls={detailId}
               >
-                {target.persona ? (
-                  <PersonaAvatar persona={target.persona} size={22} />
-                ) : (
-                  <span className="avatar">{initialsFrom(target.name)}</span>
-                )}
-                <div style={{ minWidth: 0 }}>
-                  <div className="h-subj">{item.subj || item.subject}</div>
-                  <div className="h-prev">{item.prev}</div>
+                <span className="history-avatar">
+                  {target.persona ? (
+                    <PersonaAvatar persona={target.persona} size={22} />
+                  ) : (
+                    <span className="avatar">{initialsFrom(target.name)}</span>
+                  )}
+                </span>
+                <div className="history-copy">
+                  <div className="h-subj" title={subject}>
+                    {subject}
+                  </div>
+                  <div className="h-prev" title={preview}>
+                    {preview}
+                  </div>
                 </div>
                 <div className="h-target">
                   <span>{target.name}</span>
                   <small>{target.email || target.source}</small>
                 </div>
-                <div>
-                  <span className={`tag ${item.status === "sent" ? "green" : "gray"}`}>
-                    {item.status || "draft"}
+                <div className="h-status">
+                  <span className={`tag ${status === "sent" ? "green" : "gray"}`}>
+                    {status}
                   </span>
                 </div>
                 <div className="h-meta">{item.when}</div>
               </button>
               {openId === item.id && (
-                <div className="history-detail">
+                <div
+                  id={detailId}
+                  className="history-detail"
+                  role="region"
+                  aria-label={`${subject} 상세`}
+                >
+                  <div className="history-detail-head">
+                    <div className="history-detail-title">{subject}</div>
+                    <button
+                      type="button"
+                      className="icon-btn history-detail-close"
+                      aria-label="히스토리 상세 닫기"
+                      onClick={() => setOpenId(null)}
+                    >
+                      <IconClose size={13} />
+                    </button>
+                  </div>
                   <div className="history-detail-meta">
                     <span>대상: {target.name}</span>
                     <span>{target.email || target.source}</span>
                   </div>
-                  <b>{item.subject || item.subj}</b>
-                  <p>{item.body || item.prev}</p>
+                  <p>{item.body || preview}</p>
                 </div>
               )}
             </div>

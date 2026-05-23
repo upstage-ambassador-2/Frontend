@@ -304,7 +304,7 @@ export function MelloShell({
 
   return (
     <MelloContext.Provider value={value}>
-      <div className="mello-shell">
+      <div className={`mello-shell route-${route}`}>
         <Sidebar
           personas={personas}
           route={route}
