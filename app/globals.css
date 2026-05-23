@@ -381,7 +381,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 16px 16px 12px;
+  padding: 34px 32px 26px;
   box-shadow: 0 8px 24px rgba(43, 41, 38, 0.06);
   width: 100%;
   max-width: none;
