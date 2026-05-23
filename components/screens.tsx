@@ -994,7 +994,7 @@ function FormatSlot({
   on?: boolean;
 }) {
   return (
-    <div className="row gap-3" style={{ padding: "8px 4px" }}>
+    <div className="row gap-3 format-slot">
       <div className="mini-icon">
         <IconFormat size={14} />
       </div>
@@ -1025,6 +1025,11 @@ export function FormatScreen({
     setDraft(format);
   }, [format]);
 
+  const cancel = () => {
+    setDraft(format);
+    setEditing(false);
+  };
+
   const save = async () => {
     try {
       const saved = await api.updateFormat(draft);
@@ -1036,21 +1041,25 @@ export function FormatScreen({
     }
   };
 
+  const renderEditActions = (placement: "top" | "bottom") => (
+    <div className={`format-actions format-actions-${placement}`}>
+      <button type="button" className="btn-secondary" onClick={cancel}>
+        취소
+      </button>
+      <button type="button" className="btn-primary" onClick={save}>
+        저장
+      </button>
+    </div>
+  );
+
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
+    <div className="page format-page" style={{ maxWidth: 760 }}>
       <PageTitle
         title="내 메일 형식"
         desc="사용자별 인사말과 서명을 저장해 AI 생성 프롬프트에 반영합니다."
         action={
           editing ? (
-            <div className="row gap-2">
-              <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>
-                취소
-              </button>
-              <button type="button" className="btn-primary" onClick={save}>
-                저장
-              </button>
-            </div>
+            renderEditActions("top")
           ) : (
             <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
               편집
@@ -1068,34 +1077,37 @@ export function FormatScreen({
         </div>
         <div className="card-b">
           {editing ? (
-            <div className="form-grid">
-              {[
-                ["greeting", "인사말"],
-                ["structure", "본문 구조"],
-                ["bulletStyle", "불릿 스타일"],
-                ["closing", "마무리 문장"],
-                ["language", "기본 언어"],
-              ].map(([key, label]) => (
-                <label key={key}>
-                  <span>{label}</span>
-                  <input
-                    value={String(draft[key as keyof MailFormat] || "")}
+            <>
+              <div className="form-grid format-form-grid">
+                {[
+                  ["greeting", "인사말"],
+                  ["structure", "본문 구조"],
+                  ["bulletStyle", "불릿 스타일"],
+                  ["closing", "마무리 문장"],
+                  ["language", "기본 언어"],
+                ].map(([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <input
+                      value={String(draft[key as keyof MailFormat] || "")}
+                      onChange={(event) =>
+                        setDraft({ ...draft, [key]: event.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+                <label className="span-2 format-signature">
+                  <span>서명</span>
+                  <textarea
+                    value={draft.signature}
                     onChange={(event) =>
-                      setDraft({ ...draft, [key]: event.target.value })
+                      setDraft({ ...draft, signature: event.target.value })
                     }
                   />
                 </label>
-              ))}
-              <label className="span-2">
-                <span>서명</span>
-                <textarea
-                  value={draft.signature}
-                  onChange={(event) =>
-                    setDraft({ ...draft, signature: event.target.value })
-                  }
-                />
-              </label>
-            </div>
+              </div>
+              {renderEditActions("bottom")}
+            </>
           ) : (
             <div className="format-grid">
               <div className="format-row">
