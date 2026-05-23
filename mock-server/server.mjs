@@ -175,9 +175,9 @@ let history = [
     body: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정 후 공유드리겠습니다.",
     status: "draft",
     tone: "격식",
-    toneValue: 35,
-    length: "짧음",
-    lengthValue: 45,
+    toneValue: 25,
+    length: "짧게",
+    lengthValue: 25,
     when: "오늘 14:02",
     createdAt: minutesAgo(180),
     sentAt: null,
@@ -349,18 +349,30 @@ function integrationStatus() {
   };
 }
 
+function fiveStepLabel(value, labels) {
+  const numericValue = Number.isFinite(value) ? value : 50;
+  const index = Math.min(4, Math.max(0, Math.round(numericValue / 25)));
+  return labels[index];
+}
+
 function toneLabel(value) {
-  if (value < 30) return "격식 강함";
-  if (value < 55) return "격식";
-  if (value < 75) return "중립";
-  return "친근";
+  return fiveStepLabel(value, [
+    "매우 격식",
+    "격식",
+    "중립",
+    "친근",
+    "매우 친근",
+  ]);
 }
 
 function lengthLabel(value) {
-  if (value < 30) return "아주 짧게";
-  if (value < 60) return "짧음";
-  if (value < 80) return "보통";
-  return "자세히";
+  return fiveStepLabel(value, [
+    "매우 짧게",
+    "짧게",
+    "보통",
+    "자세히",
+    "매우 자세히",
+  ]);
 }
 
 function historyOut(item) {
