@@ -487,12 +487,12 @@ export function PeopleScreen({
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page people-page">
       <PageTitle
         title="사람"
         desc="자주 보내는 사람의 관계, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
         action={
-          <div className="row gap-2">
+          <div className="row gap-2 people-actions">
             <button type="button" className="btn-secondary" onClick={importContacts}>
               <IconMail size={13} /> Contacts에서 가져오기
             </button>
