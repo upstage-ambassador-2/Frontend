@@ -18,9 +18,12 @@ Guidance for coding agents working in this frontend repository.
 
 ## Development
 
+- Use feature-level App Router pages for user-facing functionality: `/compose/{persona_id}`, `/inbox`, `/people`, `/history`, `/format`, and `/settings`.
+- Do not model the selected compose recipient as a client-only screen condition. The selected persona must be represented in the URL.
+- Keep authenticated app routes behind `app/(app)/layout.tsx` so session checks and initial data fetches happen server-side.
 - Prefer the existing React state and plain CSS patterns.
 - Keep dependencies minimal unless there is a clear reason to add one.
-- Use `Promise.all` for independent app data loads after authentication.
+- Use `Promise.all` for independent server-side app data loads after authentication.
 - For manual edits, keep changes scoped and avoid unrelated refactors.
 
 ## Validation

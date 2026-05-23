@@ -37,8 +37,8 @@ npm run dev
 If `3000` is occupied:
 
 ```bash
-MELLO_WEB_URL=http://localhost:3001 npm run mock
-MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3001
+MELLO_WEB_URL=http://localhost:3004 npm run mock
+MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3004
 ```
 
 ## Static Gates
@@ -53,28 +53,64 @@ node --check mock-server/server.mjs
 
 ```bash
 playwright-cli close-all
-playwright-cli open http://localhost:3001
+playwright-cli open http://localhost:3004/compose
 playwright-cli snapshot
 ```
 
 Expected:
 
-- `Sign in with Google` is visible.
+- Logged-out users are redirected to `/login`.
+- `Google 계정으로 계속하기` is visible.
 - Network calls are same-origin backend contract paths such as `/auth/google/start`, `/me`, `/personas`, `/history`, and `/format`.
 
 Login:
 
 ```bash
-playwright-cli click "Sign in with Google"
+playwright-cli click "Google 계정으로 계속하기"
 playwright-cli snapshot
 playwright-cli network
 ```
 
 Expected:
 
+- URL is `/compose/{persona_id}` after login or `/compose` redirect.
 - Sidebar contains `작성`, `받은편지함`, `사람`, `히스토리`, `내 메일 형식`, `설정`.
 - Network calls include `/auth/google/start`, `/me`, `/personas`, `/history`, `/format`.
 - No browser request goes to Google, Gmail, Contacts, or Upstage domains.
+
+Feature route and SSR checks:
+
+```bash
+playwright-cli run-code 'async page => {
+  const routes = [
+    ["/compose/lead", "김지훈 팀장"],
+    ["/inbox", "받은편지함"],
+    ["/people", "자주 보내는 사람"],
+    ["/history", "생성된 초안"],
+    ["/format", "기본 형식"],
+    ["/settings", "계정"],
+  ];
+  const result = [];
+  for (const [path, text] of routes) {
+    await page.goto(`http://localhost:3004${path}`, { waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "networkidle" });
+    const html = await page.evaluate(async (targetPath) => {
+      const response = await fetch(targetPath, { credentials: "include", cache: "no-store" });
+      return await response.text();
+    }, path);
+    result.push({ path, visible: await page.getByText(text).first().isVisible(), ssrHasText: html.includes(text) });
+  }
+  return result;
+}'
+```
+
+Expected:
+
+- Each route keeps its own URL after direct navigation and reload.
+- `/compose` redirects to `/compose/{first_persona_id}`.
+- Each persona compose route keeps the target persona in the path.
+- Each route's server HTML contains the route's core text.
+- No response contains `/mock-api`.
 
 Compose generate and send:
 
