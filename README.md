@@ -6,7 +6,7 @@ This repository is frontend-only. The local test backend is an independent Node 
 
 ## Stack
 
-- Next.js `14.2.18`
+- Next.js `14.2.35`
 - React `18.3.1`
 - TypeScript
 - Plain CSS in `app/globals.css`
@@ -43,13 +43,13 @@ MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3001
 
 ## API Proxy
 
-Browser code only calls same-origin `/mock-api/*`. Next.js rewrites that path to the configured API target and strips the `/mock-api` prefix.
+Browser code calls the same backend contract paths in every environment, for example `/me`, `/auth/google/start`, `/personas`, `/ai/generate`, and `/gmail/messages`. Next.js rewrites those same-origin paths to the configured API target.
 
 ```bash
 MELLO_API_URL=http://localhost:4010
 ```
 
-`MELLO_MOCK_API_URL` is still supported as a compatibility alias, but `MELLO_API_URL` is preferred because the same proxy can point at the real FastAPI service.
+For local mock E2E, point `MELLO_API_URL` at `mock-server/`. For Railway, point it at the real FastAPI service's private URL.
 
 No browser code should call Google, Gmail, Contacts, Solar, or the FastAPI host directly. OAuth, Gmail, Contacts, and Solar behavior is handled behind the server-side API boundary.
 
