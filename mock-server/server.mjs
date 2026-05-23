@@ -28,6 +28,7 @@ const emailFromAddress = (value = "") => {
   const email = (match?.[1] || text).trim();
   return email.includes("@") ? email : "";
 };
+const normalizedEmail = (value = "") => emailFromAddress(value).toLowerCase();
 
 const user = {
   id: "user-mock-oj",
@@ -651,6 +652,14 @@ async function handler(req, res) {
         sendJson(res, 422, { detail: "이름은 필수입니다." }, headers);
         return;
       }
+      const email = normalizedEmail(payload.email);
+      const existing = email
+        ? personas.find((item) => normalizedEmail(item.email) === email)
+        : null;
+      if (existing) {
+        sendJson(res, 200, existing, headers);
+        return;
+      }
       const persona = applyPersonaFields({ id: `p-${randomUUID()}` }, payload);
       personas = [persona, ...personas];
       sendJson(res, 201, persona, headers);
@@ -699,7 +708,12 @@ async function handler(req, res) {
       let imported = 0;
       let skipped = 0;
       for (const contact of contactPersonas) {
-        if (personas.some((item) => item.email === contact.email)) {
+        if (
+          personas.some(
+            (item) =>
+              normalizedEmail(item.email) === normalizedEmail(contact.email),
+          )
+        ) {
           skipped += 1;
           continue;
         }
