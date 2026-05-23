@@ -312,6 +312,7 @@ textarea {
   margin: 0 auto;
   display: flex; flex-direction: column; gap: var(--space-5);
 }
+.people-page { max-width: var(--layout-page-wide); }
 
 .page-title { align-items: flex-start; gap: 16px; }
 .page-title-text {
@@ -1244,6 +1245,14 @@ textarea {
   color: var(--text);
   font-weight: 600;
 }
+.people-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.people-actions .btn-primary,
+.people-actions .btn-secondary {
+  white-space: nowrap;
+}
 .people-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -1255,6 +1264,7 @@ textarea {
   border-radius: var(--r-lg);
   padding: 14px;
   display: flex; flex-direction: column; gap: 10px;
+  min-width: 0;
 }
 .person-card-main {
   appearance: none;
@@ -1267,12 +1277,34 @@ textarea {
   gap: 10px;
   cursor: pointer;
   color: inherit;
+  min-width: 0;
+  width: 100%;
 }
 .person-card-h { display: flex; align-items: center; gap: 10px; }
 .person-card .avatar { width: 36px; height: 36px; font-size: 13px; }
-.person-card-name { font-weight: 600; font-size: 14px; }
-.person-card-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.person-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-card-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .person-card-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.person-card-tags .tag {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .person-card-mbti {
   font: 500 11px/1 var(--mono);
   letter-spacing: 0.06em;
@@ -1286,6 +1318,7 @@ textarea {
   padding-top: 8px;
   border-top: 1px solid var(--border-faint);
   font-size: 11.5px; color: var(--text-4);
+  min-width: 0;
 }
 .person-card-last {
   display: inline-flex;
@@ -1314,6 +1347,9 @@ textarea {
   gap: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--border-faint);
+}
+.card-actions .btn-secondary {
+  justify-content: center;
 }
 
 /* ─── Format card (내 메일 형식) ──────────────────────────── */
@@ -1799,6 +1835,50 @@ textarea {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@media (max-width: 760px) {
+  .mello-shell.route-people {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .mello-shell.route-people .side {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .mello-shell.route-people .side-brand {
+    padding: 10px 12px 6px;
+  }
+  .mello-shell.route-people .side-brand-badge,
+  .mello-shell.route-people .side-search,
+  .mello-shell.route-people .side-section,
+  .mello-shell.route-people .side-people,
+  .mello-shell.route-people .side-foot {
+    display: none;
+  }
+  .mello-shell.route-people .side-nav {
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 6px 8px 8px;
+    overscroll-behavior-x: contain;
+  }
+  .mello-shell.route-people .side-item {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 9px;
+    white-space: nowrap;
+  }
+  .mello-shell.route-people .side-item-count {
+    display: none;
+  }
+  .mello-shell.route-people .topbar {
+    display: none;
+  }
+  .mello-shell.route-people .main-scroll {
+    padding: 16px 14px 28px;
+  }
+}
+
 @media (max-width: 720px) {
   .mello-shell.route-history {
     grid-template-columns: 1fr;
@@ -1956,12 +2036,104 @@ textarea {
     flex-direction: column;
     gap: 4px;
   }
-  .modal-backdrop {
+  .people-page {
+    width: 100%;
+    gap: 14px;
+  }
+  .people-page .page-title {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .people-page .page-title > div:first-child {
+    min-width: 0;
+  }
+  .people-page .page-title .small {
+    line-height: 1.45;
+  }
+  .people-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .people-actions .btn-primary,
+  .people-actions .btn-secondary {
+    width: 100%;
+    min-height: 36px;
+    justify-content: center;
+  }
+  .connection-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: -4px;
+  }
+  .connection-summary span {
+    justify-content: space-between;
+  }
+  .people-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .person-card {
     padding: 12px;
+    border-radius: var(--r-md);
+  }
+  .person-card-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .person-card-channel {
+    margin-left: 0;
+    max-width: 100%;
+  }
+  .person-card-channel.is-missing {
+    max-width: 100%;
+  }
+  .card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .card-actions .btn-secondary {
+    width: 100%;
+    min-height: 34px;
+  }
+  .empty-card {
+    min-height: 140px;
+  }
+  .modal-backdrop {
+    padding: 0;
+    place-items: end stretch;
     align-items: end;
   }
   .modal-panel {
-    max-height: calc(100vh - 24px);
+    width: 100%;
+    max-height: calc(100vh - 8px);
+    max-height: calc(100dvh - 8px);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+  }
+  .person-dialog {
+    height: calc(100vh - 8px);
+    height: calc(100dvh - 8px);
+    max-height: none;
+  }
+  .modal-h {
+    padding: 14px 16px 11px;
+  }
+  .modal-body {
+    flex: 1;
+    min-height: 0;
+    padding: 14px 16px 18px;
+    overscroll-behavior: contain;
+  }
+  .modal-foot {
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .modal-foot .btn-primary,
+  .modal-foot .btn-secondary {
+    flex: 1;
+    min-height: 36px;
+    justify-content: center;
   }
   .person-dialog .form-grid {
     grid-template-columns: 1fr;
@@ -1993,5 +2165,26 @@ textarea {
   }
   .h-status {
     justify-self: start;
+  }
+  .person-card-h {
+    align-items: flex-start;
+  }
+  .person-card-mbti {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .person-dialog {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .modal-panel {
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
   }
 }
