@@ -72,6 +72,7 @@ export type GeneratePayload = {
   length: number;
   personaId?: string | null;
   replyContextId?: string | null;
+  replyContext?: Omit<ReplyContext, "id" | "createdAt" | "updatedAt"> | null;
 };
 
 export type PersonaPayload = {
@@ -84,10 +85,20 @@ export type PersonaPayload = {
 
 export type SendPayload = {
   to?: string;
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   body: string;
   historyId?: string | null;
   replyContextId?: string | null;
+};
+
+export type SendResponse = {
+  id: string;
+  threadId: string | null;
+  status: "sent";
+  history: HistoryItem | null;
+  raw: Record<string, unknown> | null;
 };
 
 export class ApiError extends Error {
@@ -212,10 +223,10 @@ export const api = {
   gmailMessage: (id: string) =>
     apiJson<GmailMessageDetail>(`/gmail/messages/${id}`),
   send: (payload: SendPayload) =>
-    apiJson<{ id: string; threadId: string | null; history: HistoryItem | null }>(
-      "/gmail/send",
-      { method: "POST", body: JSON.stringify(payload) },
-    ),
+    apiJson<SendResponse>("/gmail/send", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   toggleIntegration: (provider: string) =>
     apiJson<{ provider: string; status: "planned"; message: string }>(
       `/integrations/${provider}/toggle`,

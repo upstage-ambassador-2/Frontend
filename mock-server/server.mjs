@@ -319,9 +319,11 @@ function upsertReplyContext(message) {
 }
 
 function buildDraft(payload) {
-  const persona = personas.find((item) => item.id === payload.personaId);
+  const personaId = payload.personaId || payload.persona_id;
+  const replyContextId = payload.replyContextId || payload.reply_context_id;
+  const persona = personas.find((item) => item.id === personaId);
   const replyContext = replyContexts.find(
-    (item) => item.id === payload.replyContextId,
+    (item) => item.id === replyContextId,
   );
   const targetName = persona?.name || "받는 분";
   const brief = (payload.brief || "").trim();
@@ -355,11 +357,28 @@ function buildDraft(payload) {
 }
 
 async function streamDraft(req, res, payload) {
-  const draft = buildDraft(payload);
+  const personaId = payload.personaId || payload.persona_id || null;
+  let replyContextId = payload.replyContextId || payload.reply_context_id || null;
+  if (!replyContextId && payload.replyContext) {
+    replyContextId = upsertReplyContext({
+      id: payload.replyContext.gmailMessageId,
+      threadId: payload.replyContext.threadId || null,
+      fromAddr: payload.replyContext.fromAddr || payload.replyContext.from || "",
+      from: payload.replyContext.from || payload.replyContext.fromAddr || "",
+      subject: payload.replyContext.subject || "",
+      snippet: payload.replyContext.snippet || "",
+      date: payload.replyContext.date || null,
+      messageId: payload.replyContext.messageId || null,
+      references: payload.replyContext.references || null,
+      rawBody: payload.replyContext.rawBody || "",
+    }).id;
+  }
+  const normalizedPayload = { ...payload, personaId, replyContextId };
+  const draft = buildDraft(normalizedPayload);
   const item = {
     id: `h-${randomUUID()}`,
-    personaId: payload.personaId || null,
-    replyContextId: payload.replyContextId || null,
+    personaId,
+    replyContextId,
     brief: payload.brief || "",
     subject: draft.subject,
     body: draft.body,
@@ -654,7 +673,8 @@ async function handler(req, res) {
 
     if (req.method === "POST" && path === "/ai/generate") {
       const payload = await readBody(req);
-      if (!payload.brief?.trim() && !payload.replyContextId) {
+      const replyContextId = payload.replyContextId || payload.reply_context_id;
+      if (!payload.brief?.trim() && !replyContextId && !payload.replyContext) {
         sendJson(res, 422, { detail: "brief 또는 reply_context가 필요합니다." }, headers);
         return;
       }
@@ -664,24 +684,34 @@ async function handler(req, res) {
 
     if (req.method === "POST" && path === "/gmail/send") {
       const payload = await readBody(req);
-      const item = history.find((entry) => entry.id === payload.historyId);
+      const historyId = payload.historyId || payload.history_id;
+      const replyContextId = payload.replyContextId || payload.reply_context_id;
+      const item = history.find((entry) => entry.id === historyId);
       if (item) {
         item.status = "sent";
         item.sentAt = nowIso();
       }
       const replyContext = replyContexts.find(
-        (context) => context.id === payload.replyContextId,
+        (context) => context.id === replyContextId,
       );
+      const to = payload.to || replyContext?.fromAddr || "";
+      if (!to) {
+        sendJson(res, 422, { detail: "받는 사람 이메일이 필요합니다." }, headers);
+        return;
+      }
       sendJson(
         res,
         200,
         {
           id: `sent-${randomUUID()}`,
           threadId: replyContext?.threadId || null,
+          status: "sent",
           history: item ? historyOut(item) : null,
           raw: {
             from: user.email,
-            to: payload.to || replyContext?.fromAddr || "",
+            to,
+            cc: payload.cc || [],
+            bcc: payload.bcc || [],
             headers: replyContext
               ? {
                   "In-Reply-To": replyContext.messageId,
