@@ -385,7 +385,7 @@ export function ComposerScreen({
 
       {replyContext && (
         <div className="reply-context">
-          <div>
+          <div className="reply-context-body">
             <div className="card-h-title">답장 컨텍스트</div>
             <div className="small muted mt-1">
               {replyContext.fromAddr} · {replyContext.subject}
@@ -404,7 +404,7 @@ export function ComposerScreen({
           </div>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary reply-context-clear"
             onClick={onClearReplyContext}
           >
             제거

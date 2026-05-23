@@ -712,6 +712,14 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   justify-content: space-between;
   gap: 14px;
 }
+.reply-context-body {
+  min-width: 0;
+}
+.reply-context-clear {
+  min-width: 72px;
+  justify-content: center;
+  flex: 0 0 auto;
+}
 .reply-snippet {
   color: var(--text-2);
   font-size: 13px;
