@@ -137,11 +137,13 @@ function RecipientCard({
           ))}
         </div>
       </div>
-      <RecipientPicker
-        personas={personas}
-        current={persona.id}
-        onPick={onPick}
-      />
+      {!replyContext && (
+        <RecipientPicker
+          personas={personas}
+          current={persona.id}
+          onPick={onPick}
+        />
+      )}
     </div>
   );
 }
