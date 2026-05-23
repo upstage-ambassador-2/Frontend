@@ -2,6 +2,12 @@
 
 Guidance for coding agents working in this frontend repository.
 
+## Repository
+
+- GitHub: https://github.com/upstage-ambassador-2/Frontend
+- Follow shared PR and issue conventions from https://github.com/upstage-ambassador-2/.github/blob/main/CONTRIBUTING.md.
+- Use the organization PR and issue templates from `upstage-ambassador-2/.github` unless this repository defines a local override.
+
 ## Scope
 
 - This is the Mello frontend repository.

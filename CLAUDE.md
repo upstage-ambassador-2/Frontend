@@ -2,6 +2,12 @@
 
 Project notes for Claude when working in this repository.
 
+## Shared Instructions
+
+- Read `AGENTS.md` first for the frontend repository rules.
+- Repository: https://github.com/upstage-ambassador-2/Frontend
+- Follow shared PR and issue conventions from https://github.com/upstage-ambassador-2/.github/blob/main/CONTRIBUTING.md.
+
 ## Role
 
 This repo is the Next.js frontend for Mello. It includes a local mock API server for E2E testing, but it is not the real backend.
