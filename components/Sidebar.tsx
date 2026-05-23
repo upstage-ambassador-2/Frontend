@@ -61,7 +61,14 @@ export function Sidebar({
   return (
     <aside className="side">
       <div className="side-brand">
-        <div className="side-brand-logo">M</div>
+        <img
+          className="side-brand-logo"
+          src="/mello-logo.png"
+          width={24}
+          height={24}
+          alt=""
+          aria-hidden="true"
+        />
         <div className="side-brand-name">Mello</div>
         <span className="side-brand-badge">v0.4 · beta</span>
       </div>

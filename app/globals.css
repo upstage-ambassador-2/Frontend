@@ -98,12 +98,10 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   color: var(--text);
 }
 .side-brand-logo {
-  width: 24px; height: 24px; border-radius: 6px;
-  background: var(--text);
-  display: grid; place-items: center;
-  color: #fbfaf7;
-  font-weight: 700; font-size: 13px;
-  letter-spacing: -0.02em;
+  width: 24px; height: 24px;
+  display: block;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 .side-brand-name {
   font-weight: 600; font-size: 15px; letter-spacing: -0.01em;
@@ -332,11 +330,10 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   display: flex; align-items: center; gap: 10px;
 }
 .auth-brand-mark {
-  width: 30px; height: 30px; border-radius: 8px;
-  background: var(--text); color: var(--bg);
-  display: grid; place-items: center;
-  font-weight: 700; font-size: 15px;
-  letter-spacing: -0.02em;
+  width: 30px; height: 30px;
+  display: block;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 .auth-brand-name {
   font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
