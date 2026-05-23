@@ -1052,6 +1052,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   border-bottom: 1px solid var(--border-faint);
   background: transparent;
   color: inherit;
+  text-decoration: none;
   text-align: left;
   cursor: pointer;
 }

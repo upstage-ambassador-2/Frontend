@@ -12,7 +12,7 @@ Covered in mock mode:
 - Compose generation through SSE
 - Regenerate through the same generation endpoint
 - History creation and sent-state update
-- Gmail inbox listing, message detail, reply context injection
+- Server-rendered Gmail inbox listing, server-rendered message detail route, reply context injection
 - Gmail send response with reply thread metadata
 - Format save and prompt-affecting generation output
 - Settings integration status and Slack/Notion planned no-op
@@ -84,7 +84,8 @@ Feature route and SSR checks:
 playwright-cli run-code 'async page => {
   const routes = [
     ["/compose/lead", "김지훈 팀장"],
-    ["/inbox", "받은편지함"],
+    ["/inbox", "Re: Mello 소개 자료 일정 문의"],
+    ["/compose/partner/reply/gmail-reply-basic", "답장 컨텍스트"],
     ["/people", "자주 보내는 사람"],
     ["/history", "생성된 초안"],
     ["/format", "기본 형식"],
@@ -110,6 +111,7 @@ Expected:
 - `/compose` redirects to `/compose/{first_persona_id}`.
 - Each persona compose route keeps the target persona in the path.
 - Each route's server HTML contains the route's core text.
+- `/inbox` server HTML contains inbox rows, and `/compose/{persona_id}/reply/{message_id}` server HTML contains the reply context.
 - No response contains `/mock-api`.
 
 Compose generate and send:
@@ -132,6 +134,7 @@ Inbox reply:
 playwright-cli click "받은편지함"
 playwright-cli click "박서연 책임 <partner@mello.test>"
 playwright-cli snapshot
+playwright-cli eval "location.pathname"
 playwright-cli click "Mello에게 작성 요청"
 playwright-cli snapshot
 playwright-cli network
@@ -139,9 +142,11 @@ playwright-cli network
 
 Expected:
 
+- URL is `/compose/partner/reply/gmail-reply-basic`.
 - `답장 컨텍스트` appears on Compose.
 - Generated subject starts with `Re:`.
-- Network calls include `/gmail/messages`, `/gmail/messages/gmail-reply-basic`, and `/ai/generate`.
+- Browser network does not call `/gmail/messages/gmail-reply-basic` directly; the detail lookup is performed by the server route before rendering.
+- Network calls include `/ai/generate` after clicking the generate button.
 
 People import:
 

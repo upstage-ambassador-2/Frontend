@@ -13,6 +13,7 @@ This repo is the Next.js frontend for Mello. It includes a local mock API server
 - Route browser requests through same-origin backend contract paths (`/me`, `/auth/*`, `/personas`, `/ai/*`, `/gmail/*`); Next rewrites them to `MELLO_API_URL`.
 - Do not call Google, Gmail, Contacts, Solar, or the real API host directly from browser code.
 - Use `/me` for auth/session detection.
+- Fetch route entry data in server components/server-only helpers. Do not add client-side initial loading for inbox, history, personas, or format data.
 
 ## Common Commands
 

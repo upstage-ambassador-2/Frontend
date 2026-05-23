@@ -21,7 +21,7 @@ Sidebar, Topbar, 기능 단위 페이지 라우팅, 검색 진입점, 사용자 
 | SHELL-02B | P0 | SSR | [ ] 각 기능 URL의 서버 응답 HTML에 핵심 화면 텍스트가 포함된다 | `/compose/{persona_id}`=`받는 사람`, `/people`=`자주 보내는 사람` 등 |
 | SHELL-02C | P0 | UI/SSR | [ ] `/compose`는 첫 번째 persona route로 redirect하고, persona 변경 시 `/compose/{persona_id}`가 된다 | 상대방별 direct URL, 새로고침, SSR HTML 검증 |
 | SHELL-03 | P0 | UI | [ ] `작성` 화면 Topbar breadcrumb가 `작성 > {페르소나명}에게`로 표시된다 | 페르소나 변경 시 breadcrumb 동기화 |
-| SHELL-04 | P0 | UI/BE | [ ] `받은편지함` 클릭 시 Inbox 화면과 최근 메일 목록이 표시된다 | `/gmail/messages` 호출, loading/empty/error 상태 포함 |
+| SHELL-04 | P0 | UI/SSR/BE | [ ] `받은편지함` 클릭 시 Inbox 화면과 최근 메일 목록이 서버 렌더링된다 | 서버 HTML에 메일 행 포함, route loading/empty/error 상태 포함 |
 | SHELL-05 | P1 | UI/BE | [ ] `사람` 메뉴 count가 사용자 persona 수와 일치한다 | `/personas` 응답 길이 |
 | SHELL-06 | P1 | UI/BE | [ ] `히스토리` 메뉴 count가 사용자 history 수와 일치한다 | `/history` 응답 길이 또는 페이지네이션 총수 |
 | SHELL-07 | P1 | UI | [ ] `자주 보내는 사람` 목록의 persona 클릭 시 `/compose/{persona_id}`로 이동하고 해당 persona가 선택된다 | recipient card, tone/length preset, URL 동기화 |

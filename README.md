@@ -47,13 +47,14 @@ The app uses feature-level Next.js routes:
 
 - `/login`
 - `/compose/{persona_id}` (`/compose` redirects to the first persona)
+- `/compose/{persona_id}/reply/{message_id}`
 - `/inbox`
 - `/people`
 - `/history`
 - `/format`
 - `/settings`
 
-Authenticated routes are wrapped by `app/(app)/layout.tsx`, which checks the HttpOnly cookie session and fetches initial app data server-side before rendering the shell. Browser code still calls same-origin backend contract paths only.
+Authenticated routes are wrapped by `app/(app)/layout.tsx`, which checks the HttpOnly cookie session and fetches initial app data server-side before rendering the shell. Inbox lists and reply message details are also fetched by server routes; client code is limited to user actions such as mutations, streaming draft generation, sending, and explicit refresh. Browser code still calls same-origin backend contract paths only.
 
 ## API Proxy
 
