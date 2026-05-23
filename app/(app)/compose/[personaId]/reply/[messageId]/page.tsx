@@ -27,5 +27,10 @@ export default async function ReplyComposePage({
     notFound();
   }
 
-  return <ReplyComposeRoute initialReplyContext={message.data.replyContext} />;
+  return (
+    <ReplyComposeRoute
+      initialReplyContext={message.data.replyContext}
+      messageId={params.messageId}
+    />
+  );
 }
