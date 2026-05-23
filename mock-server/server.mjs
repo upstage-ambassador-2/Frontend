@@ -29,6 +29,50 @@ const emailFromAddress = (value = "") => {
   return email.includes("@") ? email : "";
 };
 const normalizedEmail = (value = "") => emailFromAddress(value).toLowerCase();
+const PERSONA_TONE_VALUES = new Set([
+  "매우 격식",
+  "격식",
+  "중립",
+  "친근",
+  "매우 친근",
+]);
+const normalizePersonaTone = (value = "") => {
+  const tone = String(value || "").trim();
+  if (!tone) return "중립";
+  if (PERSONA_TONE_VALUES.has(tone)) return tone;
+  if (
+    tone.includes("매우") &&
+    (tone.includes("격식") || tone.includes("정중") || tone.includes("공식"))
+  ) {
+    return "매우 격식";
+  }
+  if (
+    tone.includes("매우") &&
+    (tone.includes("친근") || tone.includes("캐주얼") || tone.includes("편한"))
+  ) {
+    return "매우 친근";
+  }
+  if (
+    tone.includes("격식") ||
+    tone.includes("정중") ||
+    tone.includes("공손") ||
+    tone.includes("예의") ||
+    tone.includes("공식")
+  ) {
+    return "격식";
+  }
+  if (
+    tone.includes("친근") ||
+    tone.includes("따뜻") ||
+    tone.includes("편한") ||
+    tone.includes("캐주얼") ||
+    tone.includes("친구") ||
+    tone.includes("가족")
+  ) {
+    return "친근";
+  }
+  return "중립";
+};
 
 const user = {
   id: "user-mock-oj",
@@ -45,7 +89,7 @@ let personas = [
     id: "lead",
     name: "김지훈 팀장",
     relation: "회사 · 직속 상사",
-    tone: "결론 우선",
+    tone: "중립",
     notes: "결론, 일정, 근거 순서를 선호합니다.",
     email: "lead@mello.test",
     source: "manual",
@@ -66,7 +110,7 @@ let personas = [
     id: "partner",
     name: "박서연 책임",
     relation: "거래처 · 외부 협력사",
-    tone: "정중",
+    tone: "격식",
     notes: "명확한 요청과 후보 일정을 선호합니다.",
     email: "partner@mello.test",
     source: "manual",
@@ -108,7 +152,7 @@ let personas = [
     id: "colleague",
     name: "이민호 사원",
     relation: "회사 · 옆 팀",
-    tone: "구조화",
+    tone: "중립",
     notes: "데이터와 범위를 분리해서 쓰면 좋습니다.",
     email: "colleague@mello.test",
     source: "manual",
@@ -175,9 +219,9 @@ let history = [
     body: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정 후 공유드리겠습니다.",
     status: "draft",
     tone: "격식",
-    toneValue: 35,
-    length: "짧음",
-    lengthValue: 45,
+    toneValue: 25,
+    length: "짧게",
+    lengthValue: 25,
     when: "오늘 14:02",
     createdAt: minutesAgo(180),
     sentAt: null,
@@ -349,18 +393,30 @@ function integrationStatus() {
   };
 }
 
+function fiveStepLabel(value, labels) {
+  const numericValue = Number.isFinite(value) ? value : 50;
+  const index = Math.min(4, Math.max(0, Math.round(numericValue / 25)));
+  return labels[index];
+}
+
 function toneLabel(value) {
-  if (value < 30) return "격식 강함";
-  if (value < 55) return "격식";
-  if (value < 75) return "중립";
-  return "친근";
+  return fiveStepLabel(value, [
+    "매우 격식",
+    "격식",
+    "중립",
+    "친근",
+    "매우 친근",
+  ]);
 }
 
 function lengthLabel(value) {
-  if (value < 30) return "아주 짧게";
-  if (value < 60) return "짧음";
-  if (value < 80) return "보통";
-  return "자세히";
+  return fiveStepLabel(value, [
+    "매우 짧게",
+    "짧게",
+    "보통",
+    "자세히",
+    "매우 자세히",
+  ]);
 }
 
 function historyOut(item) {
@@ -522,20 +578,34 @@ function applyPersonaFields(base, payload) {
   const email = hasEmailField
     ? String(payload.email || "").trim()
     : base.email || "";
+  const listField = (name, fallback) => {
+    if (!Object.prototype.hasOwnProperty.call(payload, name)) return fallback;
+    const value = payload[name];
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item).trim()).filter(Boolean);
+    }
+    return String(value || "")
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
   const channel = hasEmailField
     ? email
       ? "이메일"
       : "이메일 미연결"
     : base.channel || (email ? "이메일" : "이메일 미연결");
+  const tone = normalizePersonaTone(payload.tone || base.tone);
   return {
     ...base,
     name: payload.name?.trim() || base.name,
     relation: payload.relation || "",
-    tone: payload.tone || "중립",
+    tone,
     notes: payload.notes || "",
     email,
     source: base.source || "manual",
-    role: base.role || "",
+    role: Object.prototype.hasOwnProperty.call(payload, "role")
+      ? String(payload.role || "").trim()
+      : base.role || "",
     mbti: base.mbti || "",
     avatar:
       base.avatar ||
@@ -546,9 +616,14 @@ function applyPersonaFields(base, payload) {
         .toUpperCase()
         .slice(0, 2),
     color: base.color || "#dfe3da",
-    keywords: base.keywords?.length ? base.keywords : [payload.tone || "중립"],
-    avoid: base.avoid || [],
-    prefer: base.prefer || payload.notes || "",
+    keywords: listField(
+      "keywords",
+      base.keywords?.length ? base.keywords : [tone],
+    ),
+    avoid: listField("avoid", base.avoid || []),
+    prefer: Object.prototype.hasOwnProperty.call(payload, "prefer")
+      ? String(payload.prefer || "").trim()
+      : base.prefer || payload.notes || "",
     channel,
     lastUsed: base.lastUsed || "없음",
     tagColor: base.tagColor || "gray",
@@ -693,7 +768,7 @@ async function handler(req, res) {
         {
           name: "최은영 책임",
           relation: "Google Contacts",
-          tone: "정중",
+          tone: "격식",
           notes: "Google Contacts에서 가져온 연락처입니다.",
           email: "mentor@mello.test",
         },

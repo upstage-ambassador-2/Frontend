@@ -18,12 +18,12 @@ Compose 화면의 recipient 선택, brief 입력, tone/length 조정, Upstage So
 | COMPOSE-01 | P0 | UI/BE | [ ] Compose 진입 시 기본 persona와 mail format이 로드된다 | recipient card, format summary, `/personas`, `/format` |
 | COMPOSE-02 | P1 | UI | [ ] recipient card에 이름/관계/역할/키워드가 표시된다 | 데이터 매핑, 태그 컬러 |
 | COMPOSE-03 | P1 | UI | [ ] `받는 사람 변경` 클릭 시 persona picker가 열린다 | 현재 선택 항목 표시, 바깥 클릭 닫힘 |
-| COMPOSE-04 | P0 | UI | [ ] picker에서 persona를 변경하면 recipient, slider preset, breadcrumb가 함께 갱신된다 | 이전 persona 상태 잔류 없음 |
+| COMPOSE-04 | P0 | UI | [ ] picker에서 persona를 변경하면 recipient, scale preset, breadcrumb가 함께 갱신된다 | 이전 persona 상태 잔류 없음 |
 | COMPOSE-05 | P0 | UI | [ ] brief가 비어 있거나 공백뿐이면 생성 버튼이 disabled다 | `disabled`, 키보드 단축키도 무동작 |
 | COMPOSE-06 | P1 | UI | [ ] 한국어 IME 입력이 끊김 없이 textarea에 반영된다 | composition 중 조기 제출/문자 손상 없음 |
 | COMPOSE-07 | P1 | UI | [ ] textarea 높이가 입력량에 따라 96px~260px 범위에서 자동 조정된다 | 레이아웃 밀림 없음 |
-| COMPOSE-08 | P1 | UI | [ ] tone slider는 0~100 범위와 라벨 4단계를 가진다 | `격식 강함`, `격식`, `중립`, `친근` |
-| COMPOSE-09 | P1 | UI | [ ] length slider는 0~100 범위와 라벨 4단계를 가진다 | `아주 짧게`, `짧게`, `보통`, `자세히` |
+| COMPOSE-08 | P1 | UI | [ ] tone control은 5단계 스케일을 가진다 | `매우 격식`, `격식`, `중립`, `친근`, `매우 친근` |
+| COMPOSE-09 | P1 | UI | [ ] length control은 5단계 스케일을 가진다 | `매우 짧게`, `짧게`, `보통`, `자세히`, `매우 자세히` |
 | COMPOSE-10 | P0 | BE | [ ] 생성 버튼 클릭 시 `POST /ai/generate` SSE 요청이 시작된다 | payload: `brief`, `tone`, `length`, `persona_id?`, `reply_context_id?` |
 | COMPOSE-11 | P0 | BE | [ ] SSE chunk 수신 중 subject/body가 실시간으로 증가 표시된다 | 완료 전에도 partial body 관찰 가능 |
 | COMPOSE-12 | P0 | BE | [ ] 생성 중 상태가 스크린리더와 시각적으로 표현된다 | `role=status` 또는 `aria-live`, spinner/cursor |

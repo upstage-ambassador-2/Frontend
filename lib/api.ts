@@ -1,4 +1,11 @@
-import type { HistoryItem, MailFormat, Persona } from "./data";
+import {
+  normalizePersona,
+  normalizePersonas,
+  type HistoryItem,
+  type MailFormat,
+  type Persona,
+  type PersonaTone,
+} from "./data";
 
 const GET_DEDUPE_TTL_MS = 750;
 const getJsonRequests = new Map<
@@ -100,9 +107,13 @@ export type GeneratePayload = {
 export type PersonaPayload = {
   name: string;
   relation: string;
-  tone: string;
+  tone: PersonaTone;
   notes: string;
   email?: string;
+  role?: string;
+  keywords?: string[];
+  avoid?: string[];
+  prefer?: string;
 };
 
 export type SendPayload = {
@@ -130,6 +141,19 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+const FIVE_STEP_SCALE = [0, 25, 50, 75, 100] as const;
+
+export type FiveStepScaleValue = (typeof FIVE_STEP_SCALE)[number];
+
+export function toFiveStepScale(value: number): FiveStepScaleValue {
+  const numericValue = Number.isFinite(value) ? value : 50;
+  const index = Math.min(
+    FIVE_STEP_SCALE.length - 1,
+    Math.max(0, Math.round(numericValue / 25)),
+  );
+  return FIVE_STEP_SCALE[index];
 }
 
 function apiUrl(path: string): string {
@@ -218,24 +242,30 @@ export const api = {
   health: () => apiJson<{ status: string }>("/health"),
   me: () => apiJson<MeResponse>("/me"),
   logout: () => apiFetch("/auth/logout", { method: "POST" }),
-  personas: () => apiJson<Persona[]>("/personas"),
+  personas: () => apiJson<Persona[]>("/personas").then(normalizePersonas),
   createPersona: (payload: PersonaPayload) =>
     apiJson<Persona>("/personas", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizePersona),
   updatePersona: (id: string, payload: PersonaPayload) =>
     apiJson<Persona>(`/personas/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizePersona),
   deletePersona: (id: string) =>
     apiFetch(`/personas/${id}`, { method: "DELETE" }),
-  importContacts: () =>
-    apiJson<{ imported: number; skipped: number; personas: Persona[] }>(
+  importContacts: async () => {
+    const result = await apiJson<{
+      imported: number;
+      skipped: number;
+      personas: Persona[];
+    }>(
       "/personas/import-contacts",
       { method: "POST", body: JSON.stringify({ limit: 20 }) },
-    ),
+    );
+    return { ...result, personas: normalizePersonas(result.personas) };
+  },
   history: () => apiJson<HistoryItem[]>("/history"),
   format: () => apiJson<MailFormat>("/format"),
   updateFormat: (payload: Partial<MailFormat>) =>
@@ -264,9 +294,14 @@ export async function generateDraft(
   },
   signal?: AbortSignal,
 ): Promise<void> {
+  const scaledPayload = {
+    ...payload,
+    tone: toFiveStepScale(payload.tone),
+    length: toFiveStepScale(payload.length),
+  };
   const response = await apiFetch("/ai/generate", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(scaledPayload),
     signal,
   });
   if (!response.body) {

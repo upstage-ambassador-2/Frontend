@@ -133,6 +133,13 @@ export const IconCheck = (p: IconProps) => (
   </Icon>
 );
 
+export const IconClose = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 4l8 8" />
+    <path d="M12 4l-8 8" />
+  </Icon>
+);
+
 export const IconMail = (p: IconProps) => (
   <Icon {...p}>
     <rect x="2" y="3.5" width="12" height="9" rx="1.5" />

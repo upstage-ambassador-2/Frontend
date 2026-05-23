@@ -1,10 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
+import {
+  PERSONA_TONE_OPTIONS,
+  normalizePersonaTone,
+  type HistoryItem,
+  type MailFormat,
+  type Persona,
+} from "@/lib/data";
 import {
   GMAIL_PAGE_SIZE_OPTIONS,
   api,
@@ -18,6 +31,7 @@ import { extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
+  IconClose,
   IconFormat,
   IconHistory,
   IconMail,
@@ -47,15 +61,234 @@ function PageTitle({
   );
 }
 
-type PersonaDraft = PersonaPayload & { id?: string };
+type PersonaDraft = {
+  id?: string;
+  name: string;
+  relation: string;
+  tone: string;
+  notes: string;
+  email: string;
+  role: string;
+  keywords: string;
+  avoid: string;
+  prefer: string;
+};
 
-const emptyPersona: PersonaDraft = {
+const emptyPersona = (): PersonaDraft => ({
   name: "",
   relation: "",
   tone: "중립",
   notes: "",
   email: "",
-};
+  role: "",
+  keywords: "",
+  avoid: "",
+  prefer: "",
+});
+
+function listText(items: string[] | undefined) {
+  return (items || []).join(", ");
+}
+
+function splitList(value: string) {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function draftFromPersona(persona: Persona): PersonaDraft {
+  return {
+    id: persona.id,
+    name: persona.name,
+    relation: persona.relation,
+    tone: normalizePersonaTone(persona.tone),
+    notes: persona.notes || "",
+    email: persona.email || "",
+    role: persona.role || "",
+    keywords: listText(persona.keywords),
+    avoid: listText(persona.avoid),
+    prefer: persona.prefer || "",
+  };
+}
+
+function serializeDraft(draft: PersonaDraft | null) {
+  if (!draft) return "";
+  return JSON.stringify({
+    id: draft.id || "",
+    name: draft.name,
+    relation: draft.relation,
+    tone: draft.tone,
+    notes: draft.notes,
+    email: draft.email,
+    role: draft.role,
+    keywords: draft.keywords,
+    avoid: draft.avoid,
+    prefer: draft.prefer,
+  });
+}
+
+function PersonaDialog({
+  draft,
+  saving,
+  onChange,
+  onCancel,
+  onSave,
+}: {
+  draft: PersonaDraft;
+  saving: boolean;
+  onChange: (draft: PersonaDraft) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const nameRef = useRef<HTMLInputElement>(null);
+  const title = draft.id ? "사람 수정" : "사람 추가";
+
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onCancel}>
+      <section
+        className="modal-panel person-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="persona-dialog-title"
+        aria-describedby="persona-dialog-desc"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-h">
+          <div>
+            <div id="persona-dialog-title" className="modal-title">
+              {title}
+            </div>
+            <div id="persona-dialog-desc" className="modal-sub">
+              관계, 톤, 메모와 Gmail 발송 이메일을 저장합니다.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="icon-btn modal-close"
+            aria-label="닫기"
+            onClick={onCancel}
+          >
+            <IconClose size={15} />
+          </button>
+        </div>
+
+        <div className="modal-body thin-scroll">
+          <div className="form-grid">
+            <label>
+              <span>이름</span>
+              <input
+                ref={nameRef}
+                value={draft.name}
+                onChange={(event) => onChange({ ...draft, name: event.target.value })}
+                placeholder="예: 김지훈 팀장"
+              />
+            </label>
+            <label>
+              <span>이메일 (선택)</span>
+              <input
+                value={draft.email}
+                onChange={(event) => onChange({ ...draft, email: event.target.value })}
+                placeholder="lead@example.com"
+              />
+            </label>
+            <label>
+              <span>관계</span>
+              <input
+                value={draft.relation}
+                onChange={(event) =>
+                  onChange({ ...draft, relation: event.target.value })
+                }
+                placeholder="회사 · 직속 상사"
+              />
+            </label>
+            <label>
+              <span>역할</span>
+              <input
+                value={draft.role}
+                onChange={(event) => onChange({ ...draft, role: event.target.value })}
+                placeholder="백엔드 챕터 리드"
+              />
+            </label>
+            <label>
+              <span>톤</span>
+              <select
+                value={normalizePersonaTone(draft.tone)}
+                onChange={(event) =>
+                  onChange({
+                    ...draft,
+                    tone: normalizePersonaTone(event.target.value),
+                  })
+                }
+              >
+                {PERSONA_TONE_OPTIONS.map((tone) => (
+                  <option key={tone} value={tone}>
+                    {tone}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>키워드</span>
+              <input
+                value={draft.keywords}
+                onChange={(event) =>
+                  onChange({ ...draft, keywords: event.target.value })
+                }
+                placeholder="결과 중심, 결론 먼저"
+              />
+            </label>
+            <label className="span-2">
+              <span>회피 표현</span>
+              <textarea
+                value={draft.avoid}
+                onChange={(event) => onChange({ ...draft, avoid: event.target.value })}
+                placeholder="변명조 표현, 모호한 시작"
+              />
+            </label>
+            <label className="span-2">
+              <span>선호 구조</span>
+              <textarea
+                value={draft.prefer}
+                onChange={(event) => onChange({ ...draft, prefer: event.target.value })}
+                placeholder="결론 → 일정 → 근거 순서"
+              />
+            </label>
+            <label className="span-2">
+              <span>메모</span>
+              <textarea
+                value={draft.notes}
+                onChange={(event) => onChange({ ...draft, notes: event.target.value })}
+                placeholder="선호하는 문장 구조나 피해야 할 표현"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="modal-foot">
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            취소
+          </button>
+          <button type="button" className="btn-primary" onClick={onSave} disabled={saving}>
+            저장
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 const htmlEntities: Record<string, string> = {
   amp: "&",
@@ -172,11 +405,28 @@ export function PeopleScreen({
   onToast: (message: string) => void;
 }) {
   const [draft, setDraft] = useState<PersonaDraft | null>(null);
+  const [initialDraft, setInitialDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const connectedCount = useMemo(
     () => personas.filter((persona) => !!personaEmail(persona)).length,
     [personas],
   );
+  const draftDirty = useMemo(
+    () => serializeDraft(draft) !== serializeDraft(initialDraft),
+    [draft, initialDraft],
+  );
+
+  const openDraft = (next: PersonaDraft) => {
+    setInitialDraft(next);
+    setDraft(next);
+  };
+
+  const closeDraft = useCallback(() => {
+    if (saving) return;
+    if (draftDirty && !window.confirm("저장하지 않은 변경을 버릴까요?")) return;
+    setDraft(null);
+    setInitialDraft(null);
+  }, [draftDirty, saving]);
 
   const save = async () => {
     if (!draft?.name.trim()) {
@@ -186,21 +436,27 @@ export function PeopleScreen({
     setSaving(true);
     try {
       const payload: PersonaPayload = {
-        name: draft.name,
-        relation: draft.relation,
-        tone: draft.tone,
-        notes: draft.notes,
-        email: draft.email?.trim() || "",
+        name: draft.name.trim(),
+        relation: draft.relation.trim(),
+        tone: normalizePersonaTone(draft.tone),
+        notes: draft.notes.trim(),
+        email: draft.email.trim(),
+        role: draft.role.trim(),
+        keywords: splitList(draft.keywords),
+        avoid: splitList(draft.avoid),
+        prefer: draft.prefer.trim(),
       };
       const saved = draft.id
         ? await api.updatePersona(draft.id, payload)
         : await api.createPersona(payload);
-      onChanged(
-        draft.id
+      const hasSavedPersona = personas.some((item) => item.id === saved.id);
+      const nextPersonas =
+        draft.id || hasSavedPersona
           ? personas.map((item) => (item.id === saved.id ? saved : item))
-          : [saved, ...personas],
-      );
+          : [saved, ...personas];
+      onChanged(nextPersonas);
       setDraft(null);
+      setInitialDraft(null);
       onToast(draft.id ? "페르소나를 수정했습니다" : "페르소나를 추가했습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "저장하지 못했습니다");
@@ -243,7 +499,7 @@ export function PeopleScreen({
             <button
               type="button"
               className="btn-primary"
-              onClick={() => setDraft(emptyPersona)}
+              onClick={() => openDraft(emptyPersona())}
             >
               <IconPlus size={14} /> 사람 추가
             </button>
@@ -261,60 +517,13 @@ export function PeopleScreen({
       </div>
 
       {draft && (
-        <div className="card form-card">
-          <div className="form-grid">
-            <label>
-              <span>이름</span>
-              <input
-                value={draft.name}
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                placeholder="예: 김지훈 팀장"
-              />
-            </label>
-            <label>
-              <span>이메일 (선택)</span>
-              <input
-                value={draft.email || ""}
-                onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                placeholder="lead@example.com"
-              />
-            </label>
-            <label>
-              <span>관계</span>
-              <input
-                value={draft.relation}
-                onChange={(event) =>
-                  setDraft({ ...draft, relation: event.target.value })
-                }
-                placeholder="회사 · 직속 상사"
-              />
-            </label>
-            <label>
-              <span>톤</span>
-              <input
-                value={draft.tone}
-                onChange={(event) => setDraft({ ...draft, tone: event.target.value })}
-                placeholder="결론 우선"
-              />
-            </label>
-            <label className="span-2">
-              <span>메모</span>
-              <textarea
-                value={draft.notes}
-                onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
-                placeholder="선호하는 문장 구조나 피해야 할 표현"
-              />
-            </label>
-          </div>
-          <div className="row gap-2" style={{ justifyContent: "flex-end" }}>
-            <button type="button" className="btn-secondary" onClick={() => setDraft(null)}>
-              취소
-            </button>
-            <button type="button" className="btn-primary" onClick={save} disabled={saving}>
-              저장
-            </button>
-          </div>
-        </div>
+        <PersonaDialog
+          draft={draft}
+          saving={saving}
+          onChange={setDraft}
+          onCancel={closeDraft}
+          onSave={() => void save()}
+        />
       )}
 
       <div className="people-grid">
@@ -343,7 +552,7 @@ export function PeopleScreen({
                     {hasEmail ? "이메일 연결됨" : "이메일 없음"}
                   </span>
                   <span className={`tag ${persona.tagColor || "gray"}`}>
-                    {persona.tone || "중립"}
+                    {normalizePersonaTone(persona.tone)}
                   </span>
                   {(persona.keywords || []).slice(0, 2).map((keyword, index) => (
                     <span key={index} className={`tag ${persona.tagColor || "gray"}`}>
@@ -369,16 +578,7 @@ export function PeopleScreen({
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() =>
-                    setDraft({
-                      id: persona.id,
-                      name: persona.name,
-                      relation: persona.relation,
-                      tone: persona.tone || "중립",
-                      notes: persona.notes || "",
-                      email: persona.email || "",
-                    })
-                  }
+                  onClick={() => openDraft(draftFromPersona(persona))}
                 >
                   수정
                 </button>

@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
-import { api, generateDraft, type ReplyContext } from "@/lib/api";
+import {
+  api,
+  generateDraft,
+  toFiveStepScale,
+  type ReplyContext,
+} from "@/lib/api";
 import { emailsMatch, extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
@@ -148,38 +153,69 @@ function RecipientCard({
   );
 }
 
+type ScaleOption = {
+  value: number;
+  label: string;
+};
+
+const TONE_SCALE: ScaleOption[] = [
+  { value: 0, label: "매우 격식" },
+  { value: 25, label: "격식" },
+  { value: 50, label: "중립" },
+  { value: 75, label: "친근" },
+  { value: 100, label: "매우 친근" },
+];
+
+const LENGTH_SCALE: ScaleOption[] = [
+  { value: 0, label: "매우 짧게" },
+  { value: 25, label: "짧게" },
+  { value: 50, label: "보통" },
+  { value: 75, label: "자세히" },
+  { value: 100, label: "매우 자세히" },
+];
+
+function selectedScaleOption(options: ScaleOption[], value: number): ScaleOption {
+  const scaledValue = toFiveStepScale(value);
+  return (
+    options.find((option) => option.value === scaledValue) ??
+    options[Math.floor(options.length / 2)]
+  );
+}
+
 function Knob({
   label,
-  edges,
+  options,
   value,
   onChange,
-  displayValue,
 }: {
   label: string;
-  edges: [string, string];
+  options: ScaleOption[];
   value: number;
   onChange: (value: number) => void;
-  displayValue: string;
 }) {
+  const selected = selectedScaleOption(options, value);
+
   return (
     <div>
       <div className="knob-label">
         <b>{label}</b>
-        <span className="v">{displayValue}</span>
+        <span className="v">{selected.label}</span>
       </div>
-      <div className="knob-track">
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          aria-label={label}
-        />
-      </div>
-      <div className="knob-edges">
-        <span>{edges[0]}</span>
-        <span>{edges[1]}</span>
+      <div className="knob-options" aria-label={`${label} 선택`}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={
+              "knob-option" +
+              (selected.value === option.value ? " is-selected" : "")
+            }
+            aria-pressed={selected.value === option.value}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -244,16 +280,10 @@ export function ComposerScreen({
       Math.min(260, Math.max(96, taRef.current.scrollHeight)) + "px";
   }, [brief]);
 
-  const toneLabel =
-    tone < 30 ? "격식 강함" : tone < 55 ? "격식" : tone < 75 ? "중립" : "친근";
-  const lengthLabel =
-    length < 30
-      ? "아주 짧게"
-      : length < 60
-      ? "짧게"
-      : length < 80
-      ? "보통"
-      : "자세히";
+  const toneOption = selectedScaleOption(TONE_SCALE, tone);
+  const lengthOption = selectedScaleOption(LENGTH_SCALE, length);
+  const toneLabel = toneOption.label;
+  const lengthLabel = lengthOption.label;
 
   const canGenerate = !!brief.trim() || !!replyContext;
   const canSend =
@@ -262,9 +292,6 @@ export function ComposerScreen({
     !sending &&
     (!!replyContext || !!persona?.email);
   const currentBody = draft?.body || "";
-  const replyMatchesCurrent =
-    !!replyContext && emailsMatch(persona?.email, replyContext.fromAddr);
-  const replyAddress = extractEmailAddress(replyContext?.fromAddr);
 
   const runGenerate = useCallback(async () => {
     if (!canGenerate) return;
@@ -280,8 +307,8 @@ export function ComposerScreen({
       await generateDraft(
         {
           brief,
-          tone,
-          length,
+          tone: toneOption.value,
+          length: lengthOption.value,
           personaId: persona?.id || null,
           replyContextId: replyContext?.id || null,
         },
@@ -315,12 +342,12 @@ export function ComposerScreen({
   }, [
     brief,
     canGenerate,
-    length,
+    lengthOption.value,
     onHistoryCreated,
     onToast,
     persona?.id,
     replyContext,
-    tone,
+    toneOption.value,
   ]);
 
   useEffect(() => {
@@ -385,26 +412,16 @@ export function ComposerScreen({
 
       {replyContext && (
         <div className="reply-context">
-          <div>
+          <div className="reply-context-body">
             <div className="card-h-title">답장 컨텍스트</div>
             <div className="small muted mt-1">
               {replyContext.fromAddr} · {replyContext.subject}
-            </div>
-            <div className="reply-context-match">
-              <span
-                className={`tag ${replyMatchesCurrent ? "green" : "amber"}`}
-              >
-                {replyMatchesCurrent
-                  ? `${persona?.name} 이메일과 매칭`
-                  : "기존 사람 이메일과 미매칭"}
-              </span>
-              <span>{replyAddress || replyContext.fromAddr}</span>
             </div>
             <div className="reply-snippet">{replyContext.snippet}</div>
           </div>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary reply-context-clear"
             onClick={onClearReplyContext}
           >
             제거
@@ -432,17 +449,15 @@ export function ComposerScreen({
           <div className="knobs">
             <Knob
               label="말투"
-              edges={["격식", "친근"]}
+              options={TONE_SCALE}
               value={tone}
               onChange={setTone}
-              displayValue={toneLabel}
             />
             <Knob
               label="길이"
-              edges={["짧게", "자세히"]}
+              options={LENGTH_SCALE}
               value={length}
               onChange={setLength}
-              displayValue={lengthLabel}
             />
           </div>
 

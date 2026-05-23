@@ -24,6 +24,7 @@ Guidance for coding agents working in this frontend repository.
 
 ## Development
 
+- Keep environment-specific auth behavior behind environment variables. The dev deployment uses `DEV_BASIC_AUTH_ENABLED=true`; do not fork auth code between `dev` and `main`.
 - Use feature-level App Router pages for user-facing functionality: `/compose/{persona_id}`, `/inbox`, `/people`, `/history`, `/format`, and `/settings`.
 - Do not model the selected compose recipient as a client-only screen condition. The selected persona must be represented in the URL.
 - Keep authenticated app routes behind `app/(app)/layout.tsx` so session checks and initial data fetches happen server-side.
@@ -48,6 +49,7 @@ Use `playwright-cli` for mock-server E2E flows. The runbook is in `docs/MOCK-E2E
 
 ## Git Hygiene
 
+- Branch flow is `feature/* -> dev -> main`. Keep feature branches focused and merge to `dev` before promoting to `main`.
 - `.agents/` and `.claude/` are intentionally committed.
 - Do not commit `node_modules/`, `.next/`, `.playwright-cli/`, env files, or TypeScript build info.
 - If comparing with the backend repository, read its files but do not modify them unless explicitly requested.

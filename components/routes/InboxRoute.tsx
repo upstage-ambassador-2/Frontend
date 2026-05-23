@@ -29,7 +29,9 @@ export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
   const replyHrefForMessage = (message: GmailMessage) => {
     const { matched } = personaMatchForMessage(message);
     const personaId = matched?.id || selectedId || personas[0]?.id;
-    if (!personaId) return "/compose";
+    if (!personaId) {
+      return `/compose/reply/${encodeURIComponent(message.id)}`;
+    }
     return `${composeHref(personaId)}/reply/${encodeURIComponent(message.id)}`;
   };
 

@@ -34,11 +34,17 @@ npm run dev
 
 The app opens at `http://localhost:3000`.
 
-If port `3000` is busy:
+If ports `3000` through `3003` are busy:
 
 ```bash
 MELLO_WEB_URL=http://localhost:3004 npm run mock
 MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3004
+```
+
+For local testing against the FastAPI backend instead of the mock server:
+
+```bash
+MELLO_API_URL=http://localhost:8000 ./node_modules/.bin/next dev -p 3004
 ```
 
 ## App Routes and SSR
@@ -67,6 +73,23 @@ MELLO_API_URL=http://localhost:4010
 For local mock E2E, point `MELLO_API_URL` at `mock-server/`. For Railway, point it at the real FastAPI service's private URL.
 
 No browser code should call Google, Gmail, Contacts, Solar, or the FastAPI host directly. OAuth, Gmail, Contacts, and Solar behavior is handled behind the server-side API boundary.
+
+## Branch and Railway Environments
+
+- `main` deploys to Railway `production`.
+- `dev` deploys to Railway `dev`.
+- Feature work should merge `feature/* -> dev`, then verified `dev -> main`.
+- Environment-specific behavior must come from environment variables, not branch-only auth code.
+
+The dev Railway frontend enables an optional Basic Auth gate before the app:
+
+```bash
+DEV_BASIC_AUTH_ENABLED=true
+DEV_BASIC_AUTH_USERNAME=<set in Railway>
+DEV_BASIC_AUTH_PASSWORD=<set in Railway>
+```
+
+Leave `DEV_BASIC_AUTH_ENABLED=false` or unset for production and normal local development.
 
 ## Backend Contract
 
