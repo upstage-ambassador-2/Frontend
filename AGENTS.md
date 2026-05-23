@@ -10,8 +10,8 @@ Guidance for coding agents working in this frontend repository.
 
 ## API Rules
 
-- Browser code must call same-origin `/mock-api/*` only.
-- `next.config.mjs` rewrites `/mock-api/:path*` to `MELLO_API_URL` and strips the prefix before reaching the API service.
+- Browser code must call the same-origin backend contract paths only, such as `/me`, `/auth/google/start`, `/personas`, and `/ai/generate`.
+- `next.config.mjs` rewrites those API paths to `MELLO_API_URL`. In tests, set `MELLO_API_URL` to the local mock server; in deployment, set it to the real FastAPI service.
 - Do not add direct browser calls to Google, Gmail, Contacts, Solar, or the FastAPI host.
 - Keep `lib/api.ts` and `mock-server/server.mjs` aligned with the FastAPI routes in `../backend/app/routers` and schemas in `../backend/app/schemas.py`.
 - Auth state is determined by `GET /me`. Do not reintroduce `/auth/session` as a frontend dependency.

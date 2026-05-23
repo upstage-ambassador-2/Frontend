@@ -60,7 +60,7 @@ playwright-cli snapshot
 Expected:
 
 - `Sign in with Google` is visible.
-- Network calls are same-origin `/mock-api/*`.
+- Network calls are same-origin backend contract paths such as `/auth/google/start`, `/me`, `/personas`, `/history`, and `/format`.
 
 Login:
 
@@ -73,7 +73,7 @@ playwright-cli network
 Expected:
 
 - Sidebar contains `작성`, `받은편지함`, `사람`, `히스토리`, `내 메일 형식`, `설정`.
-- Network calls include `/mock-api/auth/google/start`, `/mock-api/me`, `/mock-api/personas`, `/mock-api/history`, `/mock-api/format`.
+- Network calls include `/auth/google/start`, `/me`, `/personas`, `/history`, `/format`.
 - No browser request goes to Google, Gmail, Contacts, or Upstage domains.
 
 Compose generate and send:
@@ -105,7 +105,7 @@ Expected:
 
 - `답장 컨텍스트` appears on Compose.
 - Generated subject starts with `Re:`.
-- Network calls include `/mock-api/gmail/messages`, `/mock-api/gmail/messages/gmail-reply-basic`, and `/mock-api/ai/generate`.
+- Network calls include `/gmail/messages`, `/gmail/messages/gmail-reply-basic`, and `/ai/generate`.
 
 People import:
 

@@ -679,7 +679,7 @@ export function SettingsScreen({
           />
           <Row
             k="세션"
-            v="HttpOnly 쿠키 기반 mock 세션"
+            v="HttpOnly 쿠키 기반 서버 세션"
             action={
               <button type="button" className="btn-secondary" onClick={onLogout}>
                 로그아웃

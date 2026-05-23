@@ -22,7 +22,7 @@ export function LoginScreen({ onToast }: Props) {
       <div className="auth-card">
         <div className="auth-mark">
           <div className="side-brand-logo">M</div>
-          <span className="tag amber">Mock OAuth</span>
+          <span className="tag amber">Google OAuth</span>
         </div>
         <div>
           <div className="auth-title">Mello</div>
@@ -37,8 +37,8 @@ export function LoginScreen({ onToast }: Props) {
         <div className="auth-scope">
           <IconSparkle size={13} style={{ color: "var(--accent)" }} />
           <span>
-            openid, email, profile, Gmail read/send, Contacts 권한을 mock 서버가
-            서버사이드로 처리합니다.
+            openid, email, profile, Gmail read/send, Contacts 권한을 서버
+            API가 처리합니다.
           </span>
         </div>
       </div>

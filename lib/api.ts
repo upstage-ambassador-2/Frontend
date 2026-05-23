@@ -1,6 +1,5 @@
 import type { HistoryItem, MailFormat, Persona } from "./data";
 
-const API_BASE = "/mock-api";
 const GET_DEDUPE_TTL_MS = 750;
 const getJsonRequests = new Map<
   string,
@@ -111,7 +110,7 @@ export class ApiError extends Error {
 }
 
 function apiUrl(path: string): string {
-  return `${API_BASE}${path}`;
+  return path;
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -172,14 +171,16 @@ export async function apiJson<T>(
 
   if (!canDedupe) return request;
 
+  const deduped = request.catch((error) => {
+    getJsonRequests.delete(key);
+    throw error;
+  });
+
   getJsonRequests.set(key, {
     expiresAt: Date.now() + GET_DEDUPE_TTL_MS,
-    promise: request.catch((error) => {
-      getJsonRequests.delete(key);
-      throw error;
-    }),
+    promise: deduped,
   });
-  return request;
+  return deduped as Promise<T>;
 }
 
 export async function startGoogleLogin(next = "/"): Promise<string> {

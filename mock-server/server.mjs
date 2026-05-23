@@ -462,7 +462,7 @@ async function handler(req, res) {
   }
 
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
-  const path = url.pathname.replace(/^\/mock-api/, "");
+  const path = url.pathname;
 
   try {
     if (req.method === "GET" && path === "/health") {
@@ -474,7 +474,7 @@ async function handler(req, res) {
       const payload = await readBody(req);
       const origin = req.headers.origin || FRONTEND_URL;
       const next = payload.next || "/";
-      const callback = new URL(`${origin}/mock-api/auth/google/callback`);
+      const callback = new URL(`${origin}/auth/google/callback`);
       callback.searchParams.set("code", "mock-google-code");
       callback.searchParams.set("state", "mock-state");
       callback.searchParams.set("next", next);
