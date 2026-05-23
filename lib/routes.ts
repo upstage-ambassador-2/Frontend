@@ -25,6 +25,9 @@ const ROUTE_BY_PATH = new Map(APP_ROUTES.map((route) => [route.href, route]));
 
 export function routeFromPathname(pathname: string | null): Route {
   if (!pathname) return "compose";
+  if (pathname === "/compose" || pathname.startsWith("/compose/")) {
+    return "compose";
+  }
   return ROUTE_BY_PATH.get(pathname)?.key ?? "compose";
 }
 
@@ -34,4 +37,14 @@ export function hrefForRoute(route: Route): string {
 
 export function labelForRoute(route: Route): string {
   return APP_ROUTES.find((item) => item.key === route)?.label ?? "작성";
+}
+
+export function personaIdFromPathname(pathname: string | null): string | null {
+  if (!pathname?.startsWith("/compose/")) return null;
+  const [, , personaId] = pathname.split("/");
+  return personaId ? decodeURIComponent(personaId) : null;
+}
+
+export function composeHref(personaId: string): string {
+  return `/compose/${encodeURIComponent(personaId)}`;
 }

@@ -16,6 +16,8 @@ import { api, type MeResponse, type ReplyContext } from "@/lib/api";
 import {
   hrefForRoute,
   labelForRoute,
+  composeHref,
+  personaIdFromPathname,
   routeFromPathname,
   type Route,
 } from "@/lib/routes";
@@ -107,16 +109,22 @@ export function MelloShell({
   const pathname = usePathname();
   const router = useRouter();
   const route = routeFromPathname(pathname);
+  const routePersonaId = personaIdFromPathname(pathname);
   const firstPersona = initialPersonas[0];
+  const initialPersona =
+    initialPersonas.find((persona) => persona.id === routePersonaId) ??
+    firstPersona;
 
   const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
   const [format, setFormat] = useState<MailFormat>(initialFormat);
-  const [selectedId, setSelectedIdState] = useState<string>(firstPersona?.id ?? "");
-  const [tone, setTone] = useState<number>(presetTone(firstPersona));
-  const [length, setLength] = useState<number>(presetLength(firstPersona));
+  const [selectedId, setSelectedIdState] = useState<string>(
+    initialPersona?.id ?? "",
+  );
+  const [tone, setTone] = useState<number>(presetTone(initialPersona));
+  const [length, setLength] = useState<number>(presetLength(initialPersona));
   const [brief, setBrief] = useState<string>(
-    MELLO_SCENARIOS[firstPersona?.id ?? ""]?.brief ?? "",
+    MELLO_SCENARIOS[initialPersona?.id ?? ""]?.brief ?? "",
   );
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -135,24 +143,38 @@ export function MelloShell({
     );
   }, []);
 
-  const setSelectedId = useCallback(
-    (id: string) => {
+  const applyPersona = useCallback(
+    (id: string, { clearReply }: { clearReply: boolean }) => {
       const persona = personas.find((p) => p.id === id);
       setSelectedIdState(id);
       setTone(presetTone(persona));
       setLength(presetLength(persona));
-      setReplyContext(null);
+      if (clearReply) setReplyContext(null);
       setBrief(MELLO_SCENARIOS[id]?.brief || "");
     },
     [personas],
   );
 
+  useEffect(() => {
+    if (route !== "compose" || !routePersonaId || routePersonaId === selectedId) {
+      return;
+    }
+    applyPersona(routePersonaId, { clearReply: true });
+  }, [applyPersona, route, routePersonaId, selectedId]);
+
+  const setSelectedId = useCallback(
+    (id: string) => {
+      applyPersona(id, { clearReply: true });
+      router.push(composeHref(id));
+    },
+    [applyPersona, router],
+  );
+
   const openPersonaCompose = useCallback(
     (id: string) => {
       setSelectedId(id);
-      router.push(hrefForRoute("compose"));
     },
-    [router, setSelectedId],
+    [setSelectedId],
   );
 
   useEffect(() => {
@@ -192,17 +214,20 @@ export function MelloShell({
     (context: ReplyContext) => {
       const senderEmail = context.fromAddr.match(/<([^>]+)>/)?.[1];
       const matched = personas.find((persona) => persona.email === senderEmail);
+      const targetPersonaId = matched?.id ?? selectedId;
       if (matched) {
-        setSelectedIdState(matched.id);
-        setTone(presetTone(matched));
-        setLength(presetLength(matched));
+        applyPersona(matched.id, { clearReply: false });
       }
       setReplyContext(context);
       setBrief("");
-      router.push(hrefForRoute("compose"));
+      if (targetPersonaId) {
+        router.push(composeHref(targetPersonaId));
+      } else {
+        router.push(hrefForRoute("compose"));
+      }
       showToast("답장 컨텍스트가 작성 화면에 적용되었습니다");
     },
-    [personas, router, showToast],
+    [applyPersona, personas, router, selectedId, showToast],
   );
 
   const handleLogout = useCallback(async () => {
