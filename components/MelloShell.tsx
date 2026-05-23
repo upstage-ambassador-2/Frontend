@@ -138,6 +138,7 @@ export function MelloShell({
   );
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const currentPerson = useMemo(
     () => personas.find((p) => p.id === selectedId) ?? personas[0],
@@ -197,6 +198,31 @@ export function MelloShell({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  const closeMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(false);
+  }, []);
+
+  useEffect(() => {
+    closeMobileDrawer();
+  }, [closeMobileDrawer, pathname]);
+
+  useEffect(() => {
+    if (!mobileDrawerOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMobileDrawer();
+    };
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(".side-close")?.focus();
+    });
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeMobileDrawer, mobileDrawerOpen]);
 
   const crumb: [string, string | null] = useMemo(() => {
     if (route === "compose") {
@@ -305,6 +331,16 @@ export function MelloShell({
   return (
     <MelloContext.Provider value={value}>
       <div className={`mello-shell route-${route}`}>
+        <button
+          type="button"
+          className={
+            "mobile-drawer-backdrop" + (mobileDrawerOpen ? " is-visible" : "")
+          }
+          aria-label="메뉴 닫기"
+          aria-hidden={!mobileDrawerOpen}
+          tabIndex={mobileDrawerOpen ? 0 : -1}
+          onClick={closeMobileDrawer}
+        />
         <Sidebar
           personas={personas}
           route={route}
@@ -312,6 +348,8 @@ export function MelloShell({
           onPickPerson={openPersonaCompose}
           historyCount={history.length}
           user={initialMe.user ?? null}
+          mobileOpen={mobileDrawerOpen}
+          onCloseMobile={closeMobileDrawer}
         />
 
         <main className="main">
@@ -319,6 +357,8 @@ export function MelloShell({
             route={route}
             crumb={crumb}
             onResetCompose={resetCompose}
+            onOpenMobileMenu={() => setMobileDrawerOpen(true)}
+            mobileMenuOpen={mobileDrawerOpen}
           />
 
           <div className="main-scroll thin-scroll">{children}</div>

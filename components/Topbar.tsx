@@ -1,17 +1,39 @@
 "use client";
 
-import { IconSparkle, IconRefresh, IconSearch } from "./icons";
+import { IconMenu, IconSparkle, IconRefresh, IconSearch } from "./icons";
 import type { Route } from "@/lib/routes";
 
 type Props = {
   route: Route;
   crumb: [string, string | null];
   onResetCompose?: () => void;
+  onOpenMobileMenu?: () => void;
+  mobileMenuOpen?: boolean;
 };
 
-export function Topbar({ route, crumb, onResetCompose }: Props) {
+export function Topbar({
+  route,
+  crumb,
+  onResetCompose,
+  onOpenMobileMenu,
+  mobileMenuOpen = false,
+}: Props) {
   return (
     <div className="topbar">
+      <button
+        type="button"
+        className="icon-btn mobile-menu-btn"
+        aria-label="메뉴 열기"
+        aria-controls="app-sidebar"
+        aria-expanded={mobileMenuOpen}
+        onClick={onOpenMobileMenu}
+      >
+        <IconMenu size={16} />
+      </button>
+      <div className="mobile-topbar-brand" aria-hidden="true">
+        <img src="/mello-logo.png" width={20} height={20} alt="" />
+        <span>Mello</span>
+      </div>
       <div className="crumb">
         <span>{crumb[0]}</span>
         {crumb[1] && (
@@ -39,13 +61,15 @@ export function Topbar({ route, crumb, onResetCompose }: Props) {
             className="topbar-btn"
             onClick={onResetCompose}
           >
-            <IconRefresh size={13} /> 초기화
+            <IconRefresh size={13} />
+            <span className="topbar-btn-label">초기화</span>
           </button>
         </>
       )}
       {route === "history" && (
         <button type="button" className="topbar-btn">
-          <IconSearch size={13} /> 검색
+          <IconSearch size={13} />
+          <span className="topbar-btn-label">검색</span>
         </button>
       )}
       {route === "inbox" && (

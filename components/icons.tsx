@@ -127,6 +127,14 @@ export const IconMore = (p: IconProps) => (
   </Icon>
 );
 
+export const IconMenu = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 4.5h10" />
+    <path d="M3 8h10" />
+    <path d="M3 11.5h10" />
+  </Icon>
+);
+
 export const IconCheck = (p: IconProps) => (
   <Icon {...p}>
     <path d="M3 8.5l3 3 7-7" />
