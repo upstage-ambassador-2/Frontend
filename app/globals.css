@@ -726,20 +726,6 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   line-height: 1.5;
   margin-top: 8px;
 }
-.reply-context-match {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  color: var(--text-3);
-  font-size: 12px;
-}
-.reply-context-match > span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .compose-input {
   width: 100%;

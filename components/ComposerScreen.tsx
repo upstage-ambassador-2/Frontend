@@ -262,9 +262,6 @@ export function ComposerScreen({
     !sending &&
     (!!replyContext || !!persona?.email);
   const currentBody = draft?.body || "";
-  const replyMatchesCurrent =
-    !!replyContext && emailsMatch(persona?.email, replyContext.fromAddr);
-  const replyAddress = extractEmailAddress(replyContext?.fromAddr);
 
   const runGenerate = useCallback(async () => {
     if (!canGenerate) return;
@@ -389,16 +386,6 @@ export function ComposerScreen({
             <div className="card-h-title">답장 컨텍스트</div>
             <div className="small muted mt-1">
               {replyContext.fromAddr} · {replyContext.subject}
-            </div>
-            <div className="reply-context-match">
-              <span
-                className={`tag ${replyMatchesCurrent ? "green" : "amber"}`}
-              >
-                {replyMatchesCurrent
-                  ? `${persona?.name} 이메일과 매칭`
-                  : "기존 사람 이메일과 미매칭"}
-              </span>
-              <span>{replyAddress || replyContext.fromAddr}</span>
             </div>
             <div className="reply-snippet">{replyContext.snippet}</div>
           </div>
