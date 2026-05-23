@@ -90,7 +90,6 @@ export function Sidebar({
           label="받은편지함"
           active={route === "inbox"}
           href={hrefForRoute("inbox")}
-          count={30}
         />
         <NavItem
           icon={<IconPeople size={14} />}
