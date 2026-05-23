@@ -22,6 +22,12 @@ const shortDate = (minutes) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(Date.now() - minutes * 60_000));
+const emailFromAddress = (value = "") => {
+  const text = String(value).trim();
+  const match = text.match(/<([^>]+)>/);
+  const email = (match?.[1] || text).trim();
+  return email.includes("@") ? email : "";
+};
 
 const user = {
   id: "user-mock-oj",
@@ -118,6 +124,27 @@ let personas = [
     createdAt: minutesAgo(7400),
     updatedAt: minutesAgo(7400),
   },
+  {
+    id: "mom",
+    name: "엄마",
+    relation: "가족",
+    tone: "친근",
+    notes: "짧고 안심되는 표현을 선호합니다.",
+    email: "",
+    source: "manual",
+    role: "",
+    mbti: "",
+    avatar: "M",
+    color: "#eddccf",
+    keywords: ["안심시키기", "짧은 메시지"],
+    avoid: ["모호한 표현"],
+    prefer: "괜찮다는 한 줄을 먼저",
+    channel: "이메일 미연결",
+    lastUsed: "2일 전",
+    tagColor: "amber",
+    createdAt: minutesAgo(7200),
+    updatedAt: minutesAgo(7200),
+  },
 ];
 
 let mailFormat = {
@@ -136,6 +163,12 @@ let history = [
     id: "h-seed-1",
     personaId: "lead",
     replyContextId: null,
+    targetName: "김지훈 팀장",
+    targetEmail: "lead@mello.test",
+    personaName: "김지훈 팀장",
+    personaEmail: "lead@mello.test",
+    replyFromAddr: null,
+    replySubject: null,
     brief: "결제 모듈 QA 결과 공유",
     subject: "[공유] 결제 모듈 QA 결과",
     body: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정 후 공유드리겠습니다.",
@@ -193,6 +226,19 @@ const baseGmailMessages = [
     references: null,
     rawBody:
       "Q3 분석에 사용할 Q2 퍼널 전환율 원본 시트를 공유드릴 수 있습니다.\n다만 모바일/웹 구분 기준을 먼저 확인하고 싶습니다. 기준 확정 후 원본 링크를 보내드리겠습니다.",
+  },
+  {
+    id: "gmail-unmatched-sender",
+    threadId: "thread-new-9",
+    fromAddr: "윤하늘 <new.sender@mello.test>",
+    from: "윤하늘 <new.sender@mello.test>",
+    subject: "Mello 협업 문의",
+    snippet: "아직 People에 없는 발신자입니다. 답장 화면에서 기존 사람 매칭 여부를 확인할 수 있어야 합니다.",
+    date: shortDate(360),
+    messageId: "<gmail-unmatched-sender@mello.test>",
+    references: null,
+    rawBody:
+      "안녕하세요.\n\nMello 협업 가능 여부를 문의드립니다. 다음 주 중 간단히 이야기 나눌 수 있을까요?",
   },
 ];
 
@@ -405,10 +451,27 @@ async function streamDraft(req, res, payload) {
   }
   const normalizedPayload = { ...payload, personaId, replyContextId };
   const draft = buildDraft(normalizedPayload);
+  const persona = personas.find((item) => item.id === personaId);
+  const replyContext = replyContexts.find((item) => item.id === replyContextId);
+  const replyEmail = emailFromAddress(replyContext?.fromAddr);
+  const replyMatchesPersona =
+    !!replyEmail &&
+    !!persona?.email &&
+    emailFromAddress(persona.email).toLowerCase() === replyEmail.toLowerCase();
   const item = {
     id: `h-${randomUUID()}`,
     personaId,
     replyContextId,
+    targetName: replyContext
+      ? replyMatchesPersona
+        ? persona.name
+        : replyContext.fromAddr
+      : persona?.name || null,
+    targetEmail: replyContext ? replyEmail : persona?.email || "",
+    personaName: persona?.name || null,
+    personaEmail: persona?.email || "",
+    replyFromAddr: replyContext?.fromAddr || null,
+    replySubject: replyContext?.subject || null,
     brief: payload.brief || "",
     subject: draft.subject,
     body: draft.body,
@@ -454,13 +517,22 @@ async function streamDraft(req, res, payload) {
 
 function applyPersonaFields(base, payload) {
   const now = nowIso();
+  const hasEmailField = Object.prototype.hasOwnProperty.call(payload, "email");
+  const email = hasEmailField
+    ? String(payload.email || "").trim()
+    : base.email || "";
+  const channel = hasEmailField
+    ? email
+      ? "이메일"
+      : "이메일 미연결"
+    : base.channel || (email ? "이메일" : "이메일 미연결");
   return {
     ...base,
     name: payload.name?.trim() || base.name,
     relation: payload.relation || "",
     tone: payload.tone || "중립",
     notes: payload.notes || "",
-    email: payload.email || base.email || `${base.id}@mello.test`,
+    email,
     source: base.source || "manual",
     role: base.role || "",
     mbti: base.mbti || "",
@@ -476,7 +548,7 @@ function applyPersonaFields(base, payload) {
     keywords: base.keywords?.length ? base.keywords : [payload.tone || "중립"],
     avoid: base.avoid || [],
     prefer: base.prefer || payload.notes || "",
-    channel: base.channel || "이메일",
+    channel,
     lastUsed: base.lastUsed || "없음",
     tagColor: base.tagColor || "gray",
     createdAt: base.createdAt || now,

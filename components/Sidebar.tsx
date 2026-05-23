@@ -133,7 +133,9 @@ export function Sidebar({
           >
             <PersonaAvatar persona={p} size={20} />
             <span className="side-person-name">{p.name}</span>
-            <span className="side-person-meta">{p.mbti}</span>
+            <span className="side-person-meta">
+              {p.email ? p.mbti || "메일" : "메일 없음"}
+            </span>
           </button>
         ))}
         <Link
