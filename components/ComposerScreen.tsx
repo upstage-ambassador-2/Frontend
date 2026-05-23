@@ -42,7 +42,7 @@ function RecipientPicker({
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} className="recipient-picker">
       <button
         type="button"
         className="recipient-change"
@@ -116,7 +116,7 @@ function RecipientCard({
   return (
     <div className="recipient">
       <PersonaAvatar persona={persona} size={42} />
-      <div>
+      <div className="recipient-main">
         <div className="recipient-name">{persona.name}</div>
         <div className="recipient-meta">
           <span>{persona.relation}</span>
@@ -201,7 +201,7 @@ function Knob({
         <b>{label}</b>
         <span className="v">{selected.label}</span>
       </div>
-      <div className="knob-options" aria-label={`${label} 선택`}>
+      <div className="knob-options" aria-label={`${label} 선택`} role="group">
         {options.map((option) => (
           <button
             key={option.value}
@@ -269,6 +269,7 @@ export function ComposerScreen({
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [formatExpanded, setFormatExpanded] = useState(false);
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -414,7 +415,7 @@ export function ComposerScreen({
         <div className="reply-context">
           <div className="reply-context-body">
             <div className="card-h-title">답장 컨텍스트</div>
-            <div className="small muted mt-1">
+            <div className="small muted mt-1 reply-context-meta">
               {replyContext.fromAddr} · {replyContext.subject}
             </div>
             <div className="reply-snippet">{replyContext.snippet}</div>
@@ -462,10 +463,22 @@ export function ComposerScreen({
           </div>
 
           <div className="compose-foot">
-            <span className="foot-meta">
-              내 메일 형식:{" "}
-              <span style={{ color: "var(--text-2)" }}>{format.structure}</span>
-            </span>
+            <button
+              type="button"
+              className={
+                "foot-meta format-summary" +
+                (formatExpanded ? " is-expanded" : "")
+              }
+              onClick={() => setFormatExpanded((value) => !value)}
+              aria-expanded={formatExpanded}
+              aria-label={
+                formatExpanded ? "내 메일 형식 접기" : "내 메일 형식 펼치기"
+              }
+              title={format.structure}
+            >
+              <span className="format-summary-label">내 메일 형식:</span>
+              <span className="format-summary-text">{format.structure}</span>
+            </button>
             <span className="foot-spacer" />
             <span className="foot-hint">
               <kbd>⌘</kbd> <kbd>↵</kbd> 작성 요청
@@ -529,7 +542,7 @@ export function ComposerScreen({
             </div>
           )}
 
-          <div className="result-body" data-testid="result-body">
+          <div className="result-body thin-scroll" data-testid="result-body">
             {currentBody}
             {generating && <span className="cursor" aria-hidden />}
           </div>
@@ -555,7 +568,7 @@ export function ComposerScreen({
               <b>채널</b>
               <span style={{ color: "var(--text-3)" }}>· Gmail</span>
             </span>
-            <div style={{ flex: 1 }} />
+            <div className="result-spacer" />
             <button
               type="button"
               className="btn-secondary"
