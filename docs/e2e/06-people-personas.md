@@ -18,7 +18,7 @@
 | --- | --- | --- | --- | --- |
 | PEOPLE-01 | P1 | BE | [ ] People 화면 진입 시 사용자별 persona 목록이 표시된다 | `/personas`, 타 사용자 데이터 미노출 |
 | PEOPLE-02 | P1 | UI | [ ] 카드에 이름, 관계, 톤/메모 요약, 마지막 사용 정보가 표시된다 | SPEC 필드와 현재 UI 필드 차이는 구현 시 정리 |
-| PEOPLE-03 | P0 | UI | [ ] persona 카드 클릭 시 Compose로 이동하고 해당 persona가 선택된다 | recipient, breadcrumb, slider preset 갱신 |
+| PEOPLE-03 | P0 | UI | [ ] persona 카드 클릭 시 Compose로 이동하고 해당 persona가 선택된다 | recipient, breadcrumb, scale preset 갱신 |
 | PEOPLE-04 | P1 | UI/BE | [ ] `사람 추가` 버튼으로 persona 생성 모달/폼이 열린다 | 필수 필드 표시 |
 | PEOPLE-05 | P1 | BE | [ ] 이름/관계/tone/notes 입력 후 저장하면 목록에 즉시 추가된다 | `POST /personas`, optimistic 또는 refetch |
 | PEOPLE-06 | P1 | BE | [ ] 필수 필드 누락 시 저장이 차단되고 에러 메시지가 표시된다 | 422 또는 클라이언트 검증 |

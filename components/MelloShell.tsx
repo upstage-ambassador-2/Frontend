@@ -27,29 +27,31 @@ import { Topbar } from "./Topbar";
 import { ToastStack, type ToastItem } from "./Toast";
 
 const TONE_PRESETS: Record<string, number> = {
-  lead: 35,
-  partner: 20,
-  friend: 88,
-  colleague: 45,
-  mentor: 28,
-  mom: 78,
+  lead: 25,
+  partner: 25,
+  friend: 100,
+  colleague: 50,
+  mentor: 25,
+  mom: 75,
 };
 
 const LENGTH_PRESETS: Record<string, number> = {
-  lead: 45,
-  partner: 70,
-  friend: 35,
-  colleague: 55,
-  mentor: 55,
+  lead: 25,
+  partner: 75,
+  friend: 25,
+  colleague: 50,
+  mentor: 50,
   mom: 25,
 };
 
 function presetTone(persona: Persona | undefined): number {
   if (!persona) return 50;
   if (TONE_PRESETS[persona.id] != null) return TONE_PRESETS[persona.id];
-  if (persona.tone?.includes("친근")) return 82;
+  if (persona.tone?.includes("매우 친근")) return 100;
+  if (persona.tone?.includes("친근")) return 75;
+  if (persona.tone?.includes("매우 격식")) return 0;
   if (persona.tone?.includes("정중")) return 25;
-  if (persona.tone?.includes("격식")) return 30;
+  if (persona.tone?.includes("격식")) return 25;
   return 50;
 }
 

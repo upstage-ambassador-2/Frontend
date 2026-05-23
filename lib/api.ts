@@ -132,6 +132,19 @@ export class ApiError extends Error {
   }
 }
 
+const FIVE_STEP_SCALE = [0, 25, 50, 75, 100] as const;
+
+export type FiveStepScaleValue = (typeof FIVE_STEP_SCALE)[number];
+
+export function toFiveStepScale(value: number): FiveStepScaleValue {
+  const numericValue = Number.isFinite(value) ? value : 50;
+  const index = Math.min(
+    FIVE_STEP_SCALE.length - 1,
+    Math.max(0, Math.round(numericValue / 25)),
+  );
+  return FIVE_STEP_SCALE[index];
+}
+
 function apiUrl(path: string): string {
   return path;
 }
@@ -264,9 +277,14 @@ export async function generateDraft(
   },
   signal?: AbortSignal,
 ): Promise<void> {
+  const scaledPayload = {
+    ...payload,
+    tone: toFiveStepScale(payload.tone),
+    length: toFiveStepScale(payload.length),
+  };
   const response = await apiFetch("/ai/generate", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(scaledPayload),
     signal,
   });
   if (!response.body) {

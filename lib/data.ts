@@ -186,11 +186,11 @@ export const MELLO_FORMAT: MailFormat = {
 };
 
 export const MELLO_HISTORY: HistoryItem[] = [
-  { id: "h1", personaId: "lead",      subj: "[공유] 결제 모듈 QA 결과",         prev: "회귀 테스트 1건 발견되어 내일 오전까지 수정…",  tone: "직설",    length: "짧음", when: "오늘 14:02" },
+  { id: "h1", personaId: "lead",      subj: "[공유] 결제 모듈 QA 결과",         prev: "회귀 테스트 1건 발견되어 내일 오전까지 수정…",  tone: "직설",    length: "짧게", when: "오늘 14:02" },
   { id: "h2", personaId: "partner",   subj: "[Mello] 디자인 시안 1차 회신",     prev: "안녕하세요, 박 책임님. 시안 잘 받았습니다…",      tone: "정중",    length: "보통", when: "어제 10:18" },
-  { id: "h3", personaId: "friend",    subj: "주말 약속 시간 변경",               prev: "다은아 토요일 7시로 바꿀 수 있을까? 형부…",       tone: "따뜻",    length: "짧음", when: "어제 22:41" },
+  { id: "h3", personaId: "friend",    subj: "주말 약속 시간 변경",               prev: "다은아 토요일 7시로 바꿀 수 있을까? 형부…",       tone: "따뜻",    length: "짧게", when: "어제 22:41" },
   { id: "h4", personaId: "colleague", subj: "[요청] Q1 리텐션 코호트 데이터",    prev: "민호님, Q3 OKR 정리 중 코호트 비교가 필요…",     tone: "구조화",  length: "보통", when: "3일 전" },
   { id: "h5", personaId: "mentor",    subj: "[감사] 어제 피드백 정리",            prev: "책임님 어제 피드백 너무 감사드렸습니다…",         tone: "정중",    length: "보통", when: "4일 전" },
   { id: "h6", personaId: "lead",      subj: "[보고] 주간 스프린트 요약",          prev: "이번 주 완료: 결제 v2 / 진행: 알림 센터…",        tone: "직설",    length: "보통", when: "5일 전" },
-  { id: "h7", personaId: "mom",       subj: "주말 본가 갈게",                     prev: "엄마 토요일 점심쯤 갈 거야. 뭐 사갈까…",          tone: "따뜻",    length: "짧음", when: "6일 전" },
+  { id: "h7", personaId: "mom",       subj: "주말 본가 갈게",                     prev: "엄마 토요일 점심쯤 갈 거야. 뭐 사갈까…",          tone: "따뜻",    length: "짧게", when: "6일 전" },
 ];
