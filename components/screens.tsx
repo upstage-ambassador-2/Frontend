@@ -53,6 +53,94 @@ const emptyPersona: PersonaDraft = {
   email: "",
 };
 
+const htmlEntities: Record<string, string> = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  lt: "<",
+  nbsp: " ",
+  quot: "\"",
+};
+
+function decodeCodePoint(codePoint: number, fallback: string) {
+  return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+    ? String.fromCodePoint(codePoint)
+    : fallback;
+}
+
+function decodeHtmlEntities(value: string | null | undefined) {
+  if (!value) return "";
+  return value.replace(/&(#\d+|#x[\da-f]+|[a-z]+);/gi, (entity, body) => {
+    const key = body.toLowerCase();
+    if (key.startsWith("#x")) {
+      const codePoint = Number.parseInt(key.slice(2), 16);
+      return decodeCodePoint(codePoint, entity);
+    }
+    if (key.startsWith("#")) {
+      const codePoint = Number.parseInt(key.slice(1), 10);
+      return decodeCodePoint(codePoint, entity);
+    }
+    return htmlEntities[key] ?? entity;
+  });
+}
+
+function parseInboxSender(value: string) {
+  const text = decodeHtmlEntities(value).trim();
+  const addressMatch = text.match(/^(.*?)\s*<([^<>]+)>$/);
+
+  if (addressMatch) {
+    const name = addressMatch[1].trim().replace(/^"|"$/g, "");
+    const email = addressMatch[2].trim();
+    return {
+      name: name || email || "알 수 없는 발신자",
+      email: name ? email : "",
+    };
+  }
+
+  const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return {
+    name: text || emailMatch?.[0] || "알 수 없는 발신자",
+    email: emailMatch && emailMatch[0] !== text ? emailMatch[0] : "",
+  };
+}
+
+const inboxMonthNumbers: Record<string, string> = {
+  jan: "01",
+  feb: "02",
+  mar: "03",
+  apr: "04",
+  may: "05",
+  jun: "06",
+  jul: "07",
+  aug: "08",
+  sep: "09",
+  oct: "10",
+  nov: "11",
+  dec: "12",
+};
+
+function formatInboxDate(value: string | null) {
+  const text = decodeHtmlEntities(value).trim();
+  if (!text) return "";
+
+  const rfcMatch = text.match(/\b(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\b/);
+  if (rfcMatch) {
+    const [, day, month, year] = rfcMatch;
+    const monthNumber = inboxMonthNumbers[month.toLowerCase()];
+    if (monthNumber) return `${year}.${monthNumber}.${day.padStart(2, "0")}`;
+  }
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getUTCFullYear();
+    const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getUTCDate()).padStart(2, "0");
+    return `${year}.${month}.${day}`;
+  }
+
+  return text;
+}
+
 export function PeopleScreen({
   personas,
   onOpen,
@@ -284,6 +372,20 @@ export function InboxScreen({
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const messages = useMemo(
+    () =>
+      initialMessages.map((message) => {
+        const sender = parseInboxSender(message.fromAddr || message.from || "");
+        return {
+          ...message,
+          sender,
+          subjectText: decodeHtmlEntities(message.subject),
+          snippetText: decodeHtmlEntities(message.snippet),
+          dateText: formatInboxDate(message.date),
+        };
+      }),
+    [initialMessages],
+  );
 
   const load = () => {
     startRefresh(() => router.refresh());
@@ -316,19 +418,30 @@ export function InboxScreen({
         {!initialError && initialMessages.length === 0 && (
           <div className="state-row">최근 받은 메일이 없습니다.</div>
         )}
-        {initialMessages.map((message) => (
+        {messages.map((message) => (
           <Link
             key={message.id}
             className="inbox-row"
             href={replyHrefForMessage(message)}
+            aria-label={`${message.sender.name}의 ${message.subjectText} 메일에 답장하기`}
+            title={`${message.sender.name} · ${message.subjectText}`}
           >
-            <div className="inbox-from">{message.fromAddr}</div>
-            <div className="inbox-main">
-              <div className="inbox-subject">{message.subject}</div>
-              <div className="inbox-snippet">{message.snippet}</div>
+            <div className="inbox-from" title={message.fromAddr}>
+              <span className="inbox-from-name">{message.sender.name}</span>
+              {message.sender.email && (
+                <span className="inbox-from-email">{message.sender.email}</span>
+              )}
             </div>
-            <div className="inbox-date">
-              {message.date}
+            <div className="inbox-main">
+              <div className="inbox-subject" title={message.subjectText}>
+                {message.subjectText}
+              </div>
+              <div className="inbox-snippet" title={message.snippetText}>
+                {message.snippetText}
+              </div>
+            </div>
+            <div className="inbox-date" title={message.date || undefined}>
+              {message.dateText}
             </div>
           </Link>
         ))}
