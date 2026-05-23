@@ -1,0 +1,713 @@
+import http from "node:http";
+import { randomUUID } from "node:crypto";
+
+const PORT = Number(process.env.MELLO_MOCK_PORT || 4010);
+const FRONTEND_URL = process.env.MELLO_WEB_URL || "http://localhost:3000";
+const SESSION_COOKIE = "mello_session";
+const GOOGLE_SCOPES = [
+  "openid",
+  "email",
+  "profile",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/contacts.readonly",
+];
+
+const nowIso = () => new Date().toISOString();
+const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
+const shortDate = (minutes) =>
+  new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(Date.now() - minutes * 60_000));
+
+const user = {
+  id: "user-mock-oj",
+  email: "jisong.oh@mello.app",
+  name: "오지송",
+  pictureUrl: null,
+  createdAt: minutesAgo(20_000),
+};
+
+const sessions = new Map();
+
+let personas = [
+  {
+    id: "lead",
+    name: "김지훈 팀장",
+    relation: "회사 · 직속 상사",
+    tone: "결론 우선",
+    notes: "결론, 일정, 근거 순서를 선호합니다.",
+    email: "lead@mello.test",
+    source: "manual",
+    role: "백엔드 챕터 리드",
+    mbti: "ENTJ",
+    avatar: "KJ",
+    color: "#e8dfd1",
+    keywords: ["결과 중심", "직설적", "결론 먼저", "긴 설명 싫어함"],
+    avoid: ["변명조 표현", "모호한 시작"],
+    prefer: "결론 → 일정 → 근거 순서",
+    channel: "이메일",
+    lastUsed: "어제",
+    tagColor: "amber",
+    createdAt: minutesAgo(8000),
+    updatedAt: minutesAgo(8000),
+  },
+  {
+    id: "partner",
+    name: "박서연 책임",
+    relation: "거래처 · 외부 협력사",
+    tone: "정중",
+    notes: "명확한 요청과 후보 일정을 선호합니다.",
+    email: "partner@mello.test",
+    source: "manual",
+    role: "디자인 에이전시 PM",
+    mbti: "ISTJ",
+    avatar: "PS",
+    color: "#dfe3da",
+    keywords: ["공식적", "예의 중시", "명확한 요청 선호"],
+    avoid: ["반말체", "이모지"],
+    prefer: "정중한 인사 → 요청 → 회신 부탁",
+    channel: "이메일",
+    lastUsed: "3일 전",
+    tagColor: "green",
+    createdAt: minutesAgo(7800),
+    updatedAt: minutesAgo(7800),
+  },
+  {
+    id: "friend",
+    name: "정다은",
+    relation: "친구 · 대학 동기",
+    tone: "친근",
+    notes: "감정을 먼저 챙기는 표현에 반응이 좋습니다.",
+    email: "friend@mello.test",
+    source: "manual",
+    role: "디자이너",
+    mbti: "ENFP",
+    avatar: "JD",
+    color: "#efd9d3",
+    keywords: ["감정에 민감", "따뜻한 표현", "이모지 OK"],
+    avoid: ["차가운 단문", "사무적 단어"],
+    prefer: "감정 한 줄 → 사정 → 다음 약속",
+    channel: "이메일",
+    lastUsed: "5일 전",
+    tagColor: "rose",
+    createdAt: minutesAgo(7600),
+    updatedAt: minutesAgo(7600),
+  },
+  {
+    id: "colleague",
+    name: "이민호 사원",
+    relation: "회사 · 옆 팀",
+    tone: "구조화",
+    notes: "데이터와 범위를 분리해서 쓰면 좋습니다.",
+    email: "colleague@mello.test",
+    source: "manual",
+    role: "데이터 분석가",
+    mbti: "INTP",
+    avatar: "LM",
+    color: "#d8dee5",
+    keywords: ["데이터 선호", "논리적", "수치 좋아함"],
+    avoid: ["감정적 호소"],
+    prefer: "맥락 → 수치 → 결론",
+    channel: "이메일",
+    lastUsed: "오늘",
+    tagColor: "blue",
+    createdAt: minutesAgo(7400),
+    updatedAt: minutesAgo(7400),
+  },
+];
+
+let mailFormat = {
+  signature: "오지송 · Product Designer\nMello team · jisong.oh@mello.app",
+  greeting: "안녕하세요, 오지송입니다.",
+  closing: "감사합니다.",
+  structure: "인사 → 본문 → 요청 → 마무리",
+  bulletStyle: "· (가운뎃점)",
+  language: "한국어 · 존댓말 기본",
+  updatedAt: minutesAgo(6000),
+};
+
+let replyContexts = [];
+let history = [
+  {
+    id: "h-seed-1",
+    personaId: "lead",
+    replyContextId: null,
+    brief: "결제 모듈 QA 결과 공유",
+    subject: "[공유] 결제 모듈 QA 결과",
+    body: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정 후 공유드리겠습니다.",
+    status: "draft",
+    tone: "격식",
+    toneValue: 35,
+    length: "짧음",
+    lengthValue: 45,
+    when: "오늘 14:02",
+    createdAt: minutesAgo(180),
+    sentAt: null,
+    subj: "[공유] 결제 모듈 QA 결과",
+    prev: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정…",
+  },
+];
+
+const gmailMessages = [
+  {
+    id: "gmail-reply-basic",
+    threadId: "thread-basic-1",
+    fromAddr: "박서연 책임 <partner@mello.test>",
+    from: "박서연 책임 <partner@mello.test>",
+    subject: "Re: Mello 소개 자료 일정 문의",
+    snippet: "자료 검토했습니다. 다음 주 화요일까지 최종본을 받을 수 있을까요?",
+    date: shortDate(55),
+    messageId: "<gmail-reply-basic@mello.test>",
+    references: "<prev-basic@mello.test>",
+    rawBody:
+      "안녕하세요, 오지송님.\n\n보내주신 Mello 소개 자료 검토했습니다. 다음 주 화요일 오전까지 최종본을 받을 수 있을까요?\n가능하다면 변경된 슬라이드만 표시해서 공유 부탁드립니다.\n\n감사합니다.\n박서연 드림",
+  },
+  {
+    id: "gmail-reply-thread",
+    threadId: "thread-roadmap-7",
+    fromAddr: "김지훈 팀장 <lead@mello.test>",
+    from: "김지훈 팀장 <lead@mello.test>",
+    subject: "[확인] 주간 스프린트 범위",
+    snippet: "이번 주 안에 결제 v2와 알림 센터 둘 다 가능한지 범위를 다시 확인해주세요.",
+    date: shortDate(130),
+    messageId: "<gmail-reply-thread@mello.test>",
+    references: "<sprint-1@mello.test> <sprint-2@mello.test>",
+    rawBody:
+      "지송님,\n\n이번 주 안에 결제 v2와 알림 센터 둘 다 가능한지 범위를 다시 확인해주세요.\n불가능하면 오늘 17시 전까지 우선순위와 제외 범위를 정리해서 주세요.",
+  },
+  {
+    id: "gmail-long-subject",
+    threadId: "thread-long-3",
+    fromAddr: "이민호 사원 <colleague@mello.test>",
+    from: "이민호 사원 <colleague@mello.test>",
+    subject:
+      "[데이터 요청] Q2 퍼널 전환율 원본 시트 공유 가능 여부와 디바이스별 분포 기준 확인",
+    snippet:
+      "Q3 분석에 사용할 Q2 퍼널 전환율 원본 시트를 공유드릴 수 있습니다. 다만 모바일/웹 구분 기준을 먼저 확인하고 싶습니다.",
+    date: shortDate(240),
+    messageId: "<gmail-long-subject@mello.test>",
+    references: null,
+    rawBody:
+      "Q3 분석에 사용할 Q2 퍼널 전환율 원본 시트를 공유드릴 수 있습니다.\n다만 모바일/웹 구분 기준을 먼저 확인하고 싶습니다. 기준 확정 후 원본 링크를 보내드리겠습니다.",
+  },
+];
+
+function sendJson(res, status, payload, extraHeaders = {}) {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    ...extraHeaders,
+  });
+  res.end(JSON.stringify(payload));
+}
+
+function sendNoContent(res, extraHeaders = {}) {
+  res.writeHead(204, extraHeaders);
+  res.end();
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie || "";
+  return Object.fromEntries(
+    header
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const index = part.indexOf("=");
+        return [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+      }),
+  );
+}
+
+function corsHeaders(req) {
+  const origin = req.headers.origin || FRONTEND_URL;
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+    Vary: "Origin",
+  };
+}
+
+function requireSession(req, res) {
+  const token = parseCookies(req)[SESSION_COOKIE];
+  if (!token || !sessions.has(token)) {
+    sendJson(res, 401, { detail: "로그인이 필요합니다." }, corsHeaders(req));
+    return false;
+  }
+  return true;
+}
+
+function integrationStatus() {
+  return {
+    gmail: true,
+    contacts: true,
+    slack: "planned",
+    notion: "planned",
+  };
+}
+
+function toneLabel(value) {
+  if (value < 30) return "격식 강함";
+  if (value < 55) return "격식";
+  if (value < 75) return "중립";
+  return "친근";
+}
+
+function lengthLabel(value) {
+  if (value < 30) return "아주 짧게";
+  if (value < 60) return "짧음";
+  if (value < 80) return "보통";
+  return "자세히";
+}
+
+function historyOut(item) {
+  const preview = item.body.replace(/\n/g, " ").slice(0, 120);
+  return {
+    ...item,
+    subj: item.subject,
+    prev: preview,
+  };
+}
+
+function upsertReplyContext(message) {
+  let context = replyContexts.find((item) => item.gmailMessageId === message.id);
+  if (!context) {
+    context = {
+      id: `rc-${randomUUID()}`,
+      gmailMessageId: message.id,
+      fromAddr: message.fromAddr,
+      from: message.fromAddr,
+      subject: message.subject,
+      snippet: message.snippet,
+      rawBody: message.rawBody,
+      threadId: message.threadId,
+      messageId: message.messageId,
+      references: message.references,
+      date: message.date,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    replyContexts.push(context);
+  }
+  return context;
+}
+
+function buildDraft(payload) {
+  const persona = personas.find((item) => item.id === payload.personaId);
+  const replyContext = replyContexts.find(
+    (item) => item.id === payload.replyContextId,
+  );
+  const targetName = persona?.name || "받는 분";
+  const brief = (payload.brief || "").trim();
+  const subject = replyContext
+    ? `Re: ${replyContext.subject.replace(/^Re:\s*/i, "")}`
+    : brief.includes("회의")
+    ? "[Mello] 회의 일정 조율 요청"
+    : brief.includes("일정")
+    ? "[공유] 일정 변경 안내"
+    : "[Mello] 요청 사항 공유";
+  const bodyLines = [
+    mailFormat.greeting,
+    "",
+    replyContext
+      ? `${targetName}님 메일 확인했습니다. 요청주신 내용을 기준으로 아래와 같이 답변드립니다.`
+      : `${targetName}님께 공유드릴 내용을 정리했습니다.`,
+    "",
+    brief || "문의주신 내용 확인했으며, 필요한 후속 조치를 진행하겠습니다.",
+    "",
+    payload.length > 70
+      ? `${mailFormat.bulletStyle.split(" ")[0]} 배경과 일정은 확인되는 대로 추가 공유드리겠습니다.\n${mailFormat.bulletStyle.split(" ")[0]} 우선 필요한 액션은 오늘 중 진행하겠습니다.`
+      : "필요한 액션은 오늘 중 진행하겠습니다.",
+    "",
+    mailFormat.closing,
+    mailFormat.signature,
+  ];
+  return {
+    subject,
+    body: bodyLines.join("\n"),
+  };
+}
+
+async function streamDraft(req, res, payload) {
+  const draft = buildDraft(payload);
+  const item = {
+    id: `h-${randomUUID()}`,
+    personaId: payload.personaId || null,
+    replyContextId: payload.replyContextId || null,
+    brief: payload.brief || "",
+    subject: draft.subject,
+    body: draft.body,
+    status: "draft",
+    tone: toneLabel(payload.tone ?? 50),
+    toneValue: payload.tone ?? 50,
+    length: lengthLabel(payload.length ?? 50),
+    lengthValue: payload.length ?? 50,
+    when: "방금 전",
+    createdAt: nowIso(),
+    sentAt: null,
+    subj: draft.subject,
+    prev: draft.body.replace(/\n/g, " ").slice(0, 120),
+  };
+  history = [item, ...history];
+
+  res.writeHead(200, {
+    ...corsHeaders(req),
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+  });
+
+  const chunks = draft.body.match(/.{1,18}(\s|$)|.+/gs) || [draft.body];
+  for (let index = 0; index < chunks.length; index += 1) {
+    res.write(
+      `event: delta\ndata: ${JSON.stringify({
+        subject: draft.subject,
+        text: chunks[index],
+      })}\n\n`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 24));
+  }
+  res.write(
+    `event: done\ndata: ${JSON.stringify({
+      subject: draft.subject,
+      body: draft.body,
+      history: historyOut(item),
+    })}\n\n`,
+  );
+  res.end();
+}
+
+function applyPersonaFields(base, payload) {
+  const now = nowIso();
+  return {
+    ...base,
+    name: payload.name?.trim() || base.name,
+    relation: payload.relation || "",
+    tone: payload.tone || "중립",
+    notes: payload.notes || "",
+    email: payload.email || base.email || `${base.id}@mello.test`,
+    source: base.source || "manual",
+    role: base.role || "",
+    mbti: base.mbti || "",
+    avatar:
+      base.avatar ||
+      (payload.name || base.name)
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2),
+    color: base.color || "#dfe3da",
+    keywords: base.keywords?.length ? base.keywords : [payload.tone || "중립"],
+    avoid: base.avoid || [],
+    prefer: base.prefer || payload.notes || "",
+    channel: base.channel || "이메일",
+    lastUsed: base.lastUsed || "없음",
+    tagColor: base.tagColor || "gray",
+    createdAt: base.createdAt || now,
+    updatedAt: now,
+  };
+}
+
+async function handler(req, res) {
+  const headers = corsHeaders(req);
+  if (req.method === "OPTIONS") {
+    sendNoContent(res, headers);
+    return;
+  }
+
+  const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  const path = url.pathname.replace(/^\/mock-api/, "");
+
+  try {
+    if (req.method === "GET" && path === "/health") {
+      sendJson(res, 200, { status: "ok" }, headers);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/auth/google/start") {
+      const payload = await readBody(req);
+      const origin = req.headers.origin || FRONTEND_URL;
+      const next = payload.next || "/";
+      const callback = new URL(`${origin}/mock-api/auth/google/callback`);
+      callback.searchParams.set("code", "mock-google-code");
+      callback.searchParams.set("state", "mock-state");
+      callback.searchParams.set("next", next);
+      callback.searchParams.set("scope", GOOGLE_SCOPES.join(" "));
+      sendJson(res, 200, { url: callback.toString() }, headers);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/auth/google/callback") {
+      const token = `mock-session-${randomUUID()}`;
+      sessions.set(token, { userId: user.id, createdAt: nowIso() });
+      res.writeHead(303, {
+        ...headers,
+        "Set-Cookie": `${SESSION_COOKIE}=${encodeURIComponent(
+          token,
+        )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=1209600`,
+        Location: `${FRONTEND_URL}${url.searchParams.get("next") || "/"}`,
+      });
+      res.end();
+      return;
+    }
+
+    if (req.method === "POST" && path === "/auth/logout") {
+      const token = parseCookies(req)[SESSION_COOKIE];
+      if (token) sessions.delete(token);
+      sendNoContent(res, {
+        ...headers,
+        "Set-Cookie": `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+      });
+      return;
+    }
+
+    if (!requireSession(req, res)) return;
+
+    if (req.method === "GET" && path === "/me") {
+      sendJson(res, 200, { user, integrations: integrationStatus() }, headers);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/integrations") {
+      sendJson(res, 200, integrationStatus(), headers);
+      return;
+    }
+
+    const integrationMatch = path.match(/^\/integrations\/([^/]+)\/toggle$/);
+    if (req.method === "POST" && integrationMatch) {
+      const provider = integrationMatch[1];
+      sendJson(
+        res,
+        200,
+        {
+          provider,
+          status: "planned",
+          message:
+            provider === "gmail" || provider === "contacts"
+              ? "Gmail/Contacts는 Google OAuth 동의 시점에 연결됩니다."
+              : "지원 예정입니다.",
+        },
+        headers,
+      );
+      return;
+    }
+
+    if (req.method === "GET" && path === "/personas") {
+      sendJson(res, 200, personas, headers);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/personas") {
+      const payload = await readBody(req);
+      if (!payload.name?.trim()) {
+        sendJson(res, 422, { detail: "이름은 필수입니다." }, headers);
+        return;
+      }
+      const persona = applyPersonaFields({ id: `p-${randomUUID()}` }, payload);
+      personas = [persona, ...personas];
+      sendJson(res, 201, persona, headers);
+      return;
+    }
+
+    const personaMatch = path.match(/^\/personas\/([^/]+)$/);
+    if (personaMatch && req.method === "PATCH") {
+      const payload = await readBody(req);
+      const id = personaMatch[1];
+      const existing = personas.find((item) => item.id === id);
+      if (!existing) {
+        sendJson(res, 404, { detail: "페르소나를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      const updated = applyPersonaFields(existing, payload);
+      personas = personas.map((item) => (item.id === id ? updated : item));
+      sendJson(res, 200, updated, headers);
+      return;
+    }
+
+    if (personaMatch && req.method === "DELETE") {
+      const id = personaMatch[1];
+      personas = personas.filter((item) => item.id !== id);
+      sendNoContent(res, headers);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/personas/import-contacts") {
+      const contactPersonas = [
+        {
+          name: "최은영 책임",
+          relation: "Google Contacts",
+          tone: "정중",
+          notes: "Google Contacts에서 가져온 연락처입니다.",
+          email: "mentor@mello.test",
+        },
+        {
+          name: "한수민",
+          relation: "Google Contacts",
+          tone: "친근",
+          notes: "제품 피드백을 자주 주는 외부 사용자입니다.",
+          email: "soomin@mello.test",
+        },
+      ];
+      let imported = 0;
+      let skipped = 0;
+      for (const contact of contactPersonas) {
+        if (personas.some((item) => item.email === contact.email)) {
+          skipped += 1;
+          continue;
+        }
+        personas.unshift(
+          applyPersonaFields(
+            {
+              id: `contact-${randomUUID()}`,
+              source: "contacts",
+              channel: "이메일",
+              tagColor: "green",
+              color: "#dfe3da",
+              keywords: ["연락처", "이메일"],
+            },
+            contact,
+          ),
+        );
+        imported += 1;
+      }
+      sendJson(res, 200, { imported, skipped, personas }, headers);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/format") {
+      sendJson(res, 200, mailFormat, headers);
+      return;
+    }
+
+    if (req.method === "PUT" && path === "/format") {
+      const payload = await readBody(req);
+      mailFormat = { ...mailFormat, ...payload, updatedAt: nowIso() };
+      sendJson(res, 200, mailFormat, headers);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/history") {
+      sendJson(res, 200, history.map(historyOut), headers);
+      return;
+    }
+
+    const historyMatch = path.match(/^\/history\/([^/]+)$/);
+    if (historyMatch && req.method === "GET") {
+      const item = history.find((entry) => entry.id === historyMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      sendJson(res, 200, historyOut(item), headers);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/gmail/messages") {
+      const limit = Number(url.searchParams.get("limit") || 30);
+      sendJson(
+        res,
+        200,
+        gmailMessages.slice(0, limit).map(({ rawBody, ...message }) => message),
+        headers,
+      );
+      return;
+    }
+
+    const gmailMatch = path.match(/^\/gmail\/messages\/([^/]+)$/);
+    if (gmailMatch && req.method === "GET") {
+      const message = gmailMessages.find((item) => item.id === gmailMatch[1]);
+      if (!message) {
+        sendJson(res, 404, { detail: "메일을 찾을 수 없습니다." }, headers);
+        return;
+      }
+      const replyContext = upsertReplyContext(message);
+      sendJson(res, 200, { ...message, replyContext }, headers);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/ai/generate") {
+      const payload = await readBody(req);
+      if (!payload.brief?.trim() && !payload.replyContextId) {
+        sendJson(res, 422, { detail: "brief 또는 reply_context가 필요합니다." }, headers);
+        return;
+      }
+      await streamDraft(req, res, payload);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/gmail/send") {
+      const payload = await readBody(req);
+      const item = history.find((entry) => entry.id === payload.historyId);
+      if (item) {
+        item.status = "sent";
+        item.sentAt = nowIso();
+      }
+      const replyContext = replyContexts.find(
+        (context) => context.id === payload.replyContextId,
+      );
+      sendJson(
+        res,
+        200,
+        {
+          id: `sent-${randomUUID()}`,
+          threadId: replyContext?.threadId || null,
+          history: item ? historyOut(item) : null,
+          raw: {
+            from: user.email,
+            to: payload.to || replyContext?.fromAddr || "",
+            headers: replyContext
+              ? {
+                  "In-Reply-To": replyContext.messageId,
+                  References: [replyContext.references, replyContext.messageId]
+                    .filter(Boolean)
+                    .join(" "),
+                }
+              : {},
+          },
+        },
+        headers,
+      );
+      return;
+    }
+
+    sendJson(res, 404, { detail: "Mock endpoint not found." }, headers);
+  } catch (error) {
+    sendJson(
+      res,
+      500,
+      { detail: error instanceof Error ? error.message : "Mock server error" },
+      headers,
+    );
+  }
+}
+
+http.createServer(handler).listen(PORT, () => {
+  console.log(`[mello-mock] listening on http://localhost:${PORT}`);
+});
