@@ -14,6 +14,7 @@ import {
   IconPlus,
   IconMore,
   IconMail,
+  IconClose,
 } from "./icons";
 import { composeHref, hrefForRoute, type Route } from "@/lib/routes";
 import type { User } from "@/lib/api";
@@ -24,13 +25,15 @@ type NavItemProps = {
   active: boolean;
   href: string;
   count?: ReactNode;
+  onNavigate?: () => void;
 };
 
-function NavItem({ icon, label, active, href, count }: NavItemProps) {
+function NavItem({ icon, label, active, href, count, onNavigate }: NavItemProps) {
   return (
     <Link
       href={href}
       className={"side-item" + (active ? " is-active" : "")}
+      onClick={onNavigate}
     >
       <span className="side-item-icon">{icon}</span>
       <span>{label}</span>
@@ -46,6 +49,8 @@ type Props = {
   onPickPerson: (id: string) => void;
   historyCount: number;
   user: User | null;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
 };
 
 export function Sidebar({
@@ -55,9 +60,15 @@ export function Sidebar({
   onPickPerson,
   historyCount,
   user,
+  mobileOpen,
+  onCloseMobile,
 }: Props) {
   return (
-    <aside className="side">
+    <aside
+      id="app-sidebar"
+      className={"side" + (mobileOpen ? " is-mobile-open" : "")}
+      aria-label="앱 메뉴"
+    >
       <div className="side-brand">
         <img
           className="side-brand-logo"
@@ -69,6 +80,14 @@ export function Sidebar({
         />
         <div className="side-brand-name">Mello</div>
         <span className="side-brand-badge">v0.4 · beta</span>
+        <button
+          type="button"
+          className="icon-btn side-close"
+          aria-label="메뉴 닫기"
+          onClick={onCloseMobile}
+        >
+          <IconClose size={15} />
+        </button>
       </div>
 
       <div className="side-search">
@@ -84,12 +103,14 @@ export function Sidebar({
           active={route === "compose"}
           href={selectedId ? composeHref(selectedId) : hrefForRoute("compose")}
           count="⌘N"
+          onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconMail size={14} />}
           label="받은편지함"
           active={route === "inbox"}
           href={hrefForRoute("inbox")}
+          onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconPeople size={14} />}
@@ -97,6 +118,7 @@ export function Sidebar({
           active={route === "people"}
           href={hrefForRoute("people")}
           count={personas.length}
+          onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconHistory size={14} />}
@@ -104,18 +126,21 @@ export function Sidebar({
           active={route === "history"}
           href={hrefForRoute("history")}
           count={historyCount}
+          onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconFormat size={14} />}
           label="내 메일 형식"
           active={route === "format"}
           href={hrefForRoute("format")}
+          onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconSettings size={14} />}
           label="설정"
           active={route === "settings"}
           href={hrefForRoute("settings")}
+          onNavigate={onCloseMobile}
         />
       </nav>
 
@@ -129,7 +154,10 @@ export function Sidebar({
               "side-person" +
               (selectedId === p.id && route === "compose" ? " is-active" : "")
             }
-            onClick={() => onPickPerson(p.id)}
+            onClick={() => {
+              onPickPerson(p.id);
+              onCloseMobile();
+            }}
           >
             <PersonaAvatar persona={p} size={20} />
             <span className="side-person-name">{p.name}</span>
@@ -142,6 +170,7 @@ export function Sidebar({
           href={hrefForRoute("people")}
           className="side-person"
           style={{ color: "var(--text-3)" }}
+          onClick={onCloseMobile}
         >
           <span
             className="avatar"

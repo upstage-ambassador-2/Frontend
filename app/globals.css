@@ -134,6 +134,9 @@ textarea {
   background: var(--bg);
   color: var(--text);
 }
+.mobile-drawer-backdrop {
+  display: none;
+}
 
 /* ─── Sidebar ────────────────────────────────────────────── */
 .side {
@@ -162,6 +165,9 @@ textarea {
   color: var(--text-3);
   padding: 3px 6px; border-radius: 4px;
   background: var(--surface-3);
+}
+.side-close {
+  display: none;
 }
 
 .side-search {
@@ -279,6 +285,16 @@ textarea {
   background: var(--bg);
   min-height: 42px;
 }
+.mobile-menu-btn,
+.mobile-topbar-brand {
+  display: none;
+}
+.mobile-topbar-brand img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
 .crumb {
   font-size: 13px; color: var(--text-3);
   display: flex; align-items: center; gap: 6px;
@@ -333,6 +349,144 @@ textarea {
   font-size: 11.5px;
   color: var(--text-4);
   letter-spacing: 0;
+}
+
+@media (max-width: 640px) {
+  .mello-shell {
+    display: block;
+  }
+
+  .mobile-drawer-backdrop {
+    appearance: none;
+    border: 0;
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    padding: 0;
+    background: rgba(43, 41, 38, 0.28);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.16s ease-out;
+  }
+  .mobile-drawer-backdrop.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .side {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 70;
+    width: min(286px, calc(100vw - 48px));
+    max-width: 86vw;
+    box-shadow: var(--shadow-pop);
+    transform: translateX(-104%);
+    visibility: hidden;
+    transition:
+      transform 0.18s ease-out,
+      visibility 0s linear 0.18s;
+  }
+  .side.is-mobile-open {
+    transform: translateX(0);
+    visibility: visible;
+    transition:
+      transform 0.18s ease-out,
+      visibility 0s;
+  }
+  .side-brand {
+    min-height: 48px;
+    padding: 12px 12px 8px;
+  }
+  .side-close {
+    display: grid;
+    flex: 0 0 auto;
+  }
+  .side-search {
+    margin-top: 6px;
+    min-height: 36px;
+  }
+  .side-item {
+    min-height: var(--touch-target-min);
+    padding: 9px 10px;
+  }
+  .side-person {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+
+  .main {
+    height: 100%;
+  }
+  .topbar {
+    min-height: 48px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .mobile-menu-btn {
+    display: grid;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+  }
+  .mobile-topbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .crumb {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .crumb > span {
+    min-width: 0;
+  }
+  .crumb .now {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-spacer,
+  .topbar .format-pill {
+    display: none;
+  }
+  .topbar-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .topbar-btn-label {
+    display: none;
+  }
+
+  .main-scroll {
+    padding: 16px 12px 28px;
+  }
+  .page {
+    max-width: 100% !important;
+    gap: 16px;
+  }
+  .page-title {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .page-title > div:first-child {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-topbar-brand span {
+    display: none;
+  }
 }
 
 /* ─── Auth — loading (checking) view ────────────────────── */
@@ -1835,7 +1989,7 @@ textarea {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@media (max-width: 760px) {
+@media (min-width: 641px) and (max-width: 760px) {
   .mello-shell.route-people {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
@@ -1879,7 +2033,7 @@ textarea {
   }
 }
 
-@media (max-width: 720px) {
+@media (min-width: 641px) and (max-width: 720px) {
   .mello-shell.route-history {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
