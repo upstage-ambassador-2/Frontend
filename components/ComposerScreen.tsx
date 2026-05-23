@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import { api, generateDraft, type ReplyContext } from "@/lib/api";
+import { emailsMatch, extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconCheck,
@@ -81,10 +82,12 @@ function RecipientCard({
   persona,
   personas,
   onPick,
+  replyContext,
 }: {
   persona: Persona | undefined;
   personas: Persona[];
   onPick: (id: string) => void;
+  replyContext: ReplyContext | null;
 }) {
   if (!persona) {
     return (
@@ -93,6 +96,17 @@ function RecipientCard({
       </div>
     );
   }
+
+  const email = persona.email?.trim() || "";
+  const replyEmail = extractEmailAddress(replyContext?.fromAddr);
+  const replyMatchesPersona = emailsMatch(persona.email, replyContext?.fromAddr);
+  const deliveryLabel = replyContext
+    ? replyMatchesPersona
+      ? `답장 발신자와 연결됨 · ${replyEmail}`
+      : `답장 대상 · ${replyContext.fromAddr}`
+    : email
+    ? `Gmail 발송 대상 · ${email}`
+    : "이메일 없음 · 발송 전 People에서 이메일을 추가하세요";
 
   return (
     <div className="recipient">
@@ -105,6 +119,15 @@ function RecipientCard({
           {persona.role && <span>{persona.role}</span>}
           {persona.email && <span className="dot" />}
           {persona.email && <span>{persona.email}</span>}
+        </div>
+        <div className="recipient-delivery">
+          <span
+            className={
+              "delivery-state " +
+              (replyContext || email ? "is-ready" : "is-missing")
+            }
+          />
+          <span>{deliveryLabel}</span>
         </div>
         <div className="recipient-tags">
           {(persona.keywords || []).slice(0, 4).map((keyword, index) => (
@@ -231,7 +254,15 @@ export function ComposerScreen({
       : "자세히";
 
   const canGenerate = !!brief.trim() || !!replyContext;
+  const canSend =
+    !!draft?.body &&
+    !generating &&
+    !sending &&
+    (!!replyContext || !!persona?.email);
   const currentBody = draft?.body || "";
+  const replyMatchesCurrent =
+    !!replyContext && emailsMatch(persona?.email, replyContext.fromAddr);
+  const replyAddress = extractEmailAddress(replyContext?.fromAddr);
 
   const runGenerate = useCallback(async () => {
     if (!canGenerate) return;
@@ -346,6 +377,7 @@ export function ComposerScreen({
           persona={persona}
           personas={personas}
           onPick={setSelectedId}
+          replyContext={replyContext}
         />
       </div>
 
@@ -356,9 +388,23 @@ export function ComposerScreen({
             <div className="small muted mt-1">
               {replyContext.fromAddr} · {replyContext.subject}
             </div>
+            <div className="reply-context-match">
+              <span
+                className={`tag ${replyMatchesCurrent ? "green" : "amber"}`}
+              >
+                {replyMatchesCurrent
+                  ? `${persona?.name} 이메일과 매칭`
+                  : "기존 사람 이메일과 미매칭"}
+              </span>
+              <span>{replyAddress || replyContext.fromAddr}</span>
+            </div>
             <div className="reply-snippet">{replyContext.snippet}</div>
           </div>
-          <button type="button" className="btn-secondary" onClick={onClearReplyContext}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onClearReplyContext}
+          >
             제거
           </button>
         </div>
@@ -501,11 +547,14 @@ export function ComposerScreen({
             >
               <IconCopy size={14} /> 복사
             </button>
+            {!replyContext && !persona?.email && (
+              <span className="send-warning">이메일 추가 후 발송 가능</span>
+            )}
             <button
               type="button"
               className="btn-primary"
               onClick={send}
-              disabled={!draft?.body || generating || sending}
+              disabled={!canSend}
               data-testid="send-btn"
             >
               <IconSend size={14} />

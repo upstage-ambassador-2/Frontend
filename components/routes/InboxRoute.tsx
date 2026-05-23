@@ -3,6 +3,7 @@
 import { InboxScreen } from "@/components/screens";
 import { useMello } from "@/components/MelloShell";
 import type { GmailMessage, PaginatedGmailMessages } from "@/lib/api";
+import { normalizeEmailAddress } from "@/lib/email";
 import { composeHref } from "@/lib/routes";
 
 type Props = {
@@ -14,10 +15,19 @@ type Props = {
 export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
   const { personas, selectedId } = useMello();
 
+  const personaMatchForMessage = (message: GmailMessage) => {
+    const senderEmail = normalizeEmailAddress(message.fromAddr || message.from);
+    const matched = personas.find(
+      (persona) => normalizeEmailAddress(persona.email) === senderEmail,
+    );
+    return {
+      matched,
+      senderEmail,
+    };
+  };
+
   const replyHrefForMessage = (message: GmailMessage) => {
-    const senderEmail =
-      message.fromAddr.match(/<([^>]+)>/)?.[1] ?? message.fromAddr.trim();
-    const matched = personas.find((persona) => persona.email === senderEmail);
+    const { matched } = personaMatchForMessage(message);
     const personaId = matched?.id || selectedId || personas[0]?.id;
     if (!personaId) return "/compose";
     return `${composeHref(personaId)}/reply/${encodeURIComponent(message.id)}`;
@@ -29,6 +39,7 @@ export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
       initialError={initialError}
       pageToken={pageToken}
       replyHrefForMessage={replyHrefForMessage}
+      personaMatchForMessage={personaMatchForMessage}
     />
   );
 }
