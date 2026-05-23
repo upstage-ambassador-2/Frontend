@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { MELLO_SCENARIOS } from "@/lib/data";
+import { MELLO_SCENARIOS, normalizePersonaTone } from "@/lib/data";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import { api, type MeResponse, type ReplyContext } from "@/lib/api";
 import { normalizeEmailAddress } from "@/lib/email";
@@ -47,12 +47,19 @@ const LENGTH_PRESETS: Record<string, number> = {
 function presetTone(persona: Persona | undefined): number {
   if (!persona) return 50;
   if (TONE_PRESETS[persona.id] != null) return TONE_PRESETS[persona.id];
-  if (persona.tone?.includes("매우 친근")) return 100;
-  if (persona.tone?.includes("친근")) return 75;
-  if (persona.tone?.includes("매우 격식")) return 0;
-  if (persona.tone?.includes("정중")) return 25;
-  if (persona.tone?.includes("격식")) return 25;
-  return 50;
+  switch (normalizePersonaTone(persona.tone)) {
+    case "매우 격식":
+      return 0;
+    case "격식":
+      return 25;
+    case "친근":
+      return 75;
+    case "매우 친근":
+      return 100;
+    case "중립":
+    default:
+      return 50;
+  }
 }
 
 function presetLength(persona: Persona | undefined): number {

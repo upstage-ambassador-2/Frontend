@@ -29,6 +29,50 @@ const emailFromAddress = (value = "") => {
   return email.includes("@") ? email : "";
 };
 const normalizedEmail = (value = "") => emailFromAddress(value).toLowerCase();
+const PERSONA_TONE_VALUES = new Set([
+  "매우 격식",
+  "격식",
+  "중립",
+  "친근",
+  "매우 친근",
+]);
+const normalizePersonaTone = (value = "") => {
+  const tone = String(value || "").trim();
+  if (!tone) return "중립";
+  if (PERSONA_TONE_VALUES.has(tone)) return tone;
+  if (
+    tone.includes("매우") &&
+    (tone.includes("격식") || tone.includes("정중") || tone.includes("공식"))
+  ) {
+    return "매우 격식";
+  }
+  if (
+    tone.includes("매우") &&
+    (tone.includes("친근") || tone.includes("캐주얼") || tone.includes("편한"))
+  ) {
+    return "매우 친근";
+  }
+  if (
+    tone.includes("격식") ||
+    tone.includes("정중") ||
+    tone.includes("공손") ||
+    tone.includes("예의") ||
+    tone.includes("공식")
+  ) {
+    return "격식";
+  }
+  if (
+    tone.includes("친근") ||
+    tone.includes("따뜻") ||
+    tone.includes("편한") ||
+    tone.includes("캐주얼") ||
+    tone.includes("친구") ||
+    tone.includes("가족")
+  ) {
+    return "친근";
+  }
+  return "중립";
+};
 
 const user = {
   id: "user-mock-oj",
@@ -45,7 +89,7 @@ let personas = [
     id: "lead",
     name: "김지훈 팀장",
     relation: "회사 · 직속 상사",
-    tone: "결론 우선",
+    tone: "중립",
     notes: "결론, 일정, 근거 순서를 선호합니다.",
     email: "lead@mello.test",
     source: "manual",
@@ -66,7 +110,7 @@ let personas = [
     id: "partner",
     name: "박서연 책임",
     relation: "거래처 · 외부 협력사",
-    tone: "정중",
+    tone: "격식",
     notes: "명확한 요청과 후보 일정을 선호합니다.",
     email: "partner@mello.test",
     source: "manual",
@@ -108,7 +152,7 @@ let personas = [
     id: "colleague",
     name: "이민호 사원",
     relation: "회사 · 옆 팀",
-    tone: "구조화",
+    tone: "중립",
     notes: "데이터와 범위를 분리해서 쓰면 좋습니다.",
     email: "colleague@mello.test",
     source: "manual",
@@ -550,11 +594,12 @@ function applyPersonaFields(base, payload) {
       ? "이메일"
       : "이메일 미연결"
     : base.channel || (email ? "이메일" : "이메일 미연결");
+  const tone = normalizePersonaTone(payload.tone || base.tone);
   return {
     ...base,
     name: payload.name?.trim() || base.name,
     relation: payload.relation || "",
-    tone: payload.tone || "중립",
+    tone,
     notes: payload.notes || "",
     email,
     source: base.source || "manual",
@@ -573,7 +618,7 @@ function applyPersonaFields(base, payload) {
     color: base.color || "#dfe3da",
     keywords: listField(
       "keywords",
-      base.keywords?.length ? base.keywords : [payload.tone || "중립"],
+      base.keywords?.length ? base.keywords : [tone],
     ),
     avoid: listField("avoid", base.avoid || []),
     prefer: Object.prototype.hasOwnProperty.call(payload, "prefer")
@@ -723,7 +768,7 @@ async function handler(req, res) {
         {
           name: "최은영 책임",
           relation: "Google Contacts",
-          tone: "정중",
+          tone: "격식",
           notes: "Google Contacts에서 가져온 연락처입니다.",
           email: "mentor@mello.test",
         },
