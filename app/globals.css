@@ -44,6 +44,43 @@
   --shadow-card: 0 1px 0 rgba(15,15,15,0.04), 0 2px 6px rgba(15,15,15,0.04);
   --shadow-pop: 0 6px 20px rgba(15,15,15,0.10), 0 1px 2px rgba(15,15,15,0.06);
 
+  /* Responsive breakpoints
+     New responsive CSS should be mobile-first. Keep literal values in @media
+     rules because CSS variables are not supported in media query conditions. */
+  --bp-xs: 480px;
+  --bp-sm: 640px;
+  --bp-md: 1024px;
+  --bp-lg: 1280px;
+
+  /* Spacing scale */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-11: 44px;
+  --space-12: 48px;
+
+  /* Layout scale */
+  --layout-sidebar: 240px;
+  --layout-page: 880px;
+  --layout-page-wide: 1040px;
+  --layout-page-narrow: 760px;
+  --layout-auth-card: 420px;
+  --layout-modal: 640px;
+
+  /* Control and touch targets */
+  --control-h-xs: 28px;
+  --control-h-sm: 30px;
+  --control-h-md: 36px;
+  --control-h-lg: 44px;
+  --touch-target-min: 44px;
+
   /* Type scale */
   --font: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
           system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
@@ -56,6 +93,12 @@
   --t-xl: 19px;
   --t-2xl: 24px;
   --t-3xl: 30px;
+  --t-body: var(--t-md);
+  --t-control: var(--t-sm);
+  --t-label: var(--t-xs);
+  --lh-tight: 1.25;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.7;
 }
 
 * { box-sizing: border-box; }
@@ -64,7 +107,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 
 body {
   font-family: var(--font);
-  font-size: var(--t-md);
+  font-size: var(--t-body);
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -75,11 +118,18 @@ body {
 
 button { font-family: inherit; }
 button:disabled { cursor: not-allowed; opacity: 0.58; }
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* Mello shell */
 .mello-shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: var(--layout-sidebar) 1fr;
   height: 100%;
   background: var(--bg);
   color: var(--text);
@@ -238,7 +288,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 
 .topbar-spacer { flex: 1; }
 .topbar-btn {
-  height: 28px; padding: 0 10px;
+  min-height: var(--control-h-xs); padding: 0 10px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   border-radius: var(--r-md);
@@ -255,12 +305,12 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 
 .main-scroll {
   flex: 1; overflow: auto;
-  padding: 24px 32px 40px;
+  padding: var(--space-6) var(--space-8) var(--space-10);
 }
 .page {
-  max-width: 880px;
+  max-width: var(--layout-page);
   margin: 0 auto;
-  display: flex; flex-direction: column; gap: 20px;
+  display: flex; flex-direction: column; gap: var(--space-5);
 }
 
 .page-title { align-items: flex-start; gap: 16px; }
@@ -293,7 +343,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   background: var(--bg);
 }
 .auth-page .auth-card {
-  width: min(420px, 100%);
+  width: min(var(--layout-auth-card), 100%);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -534,7 +584,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 
 .auth-btn {
   appearance: none; border: 0;
-  height: 44px; padding: 0 14px;
+  min-height: var(--control-h-lg); padding: 0 14px;
   border-radius: 9px;
   font: 500 14px/1 var(--font);
   display: inline-flex; align-items: center; justify-content: center;
@@ -677,6 +727,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .recipient-change {
   margin-left: auto;
   font-size: 12.5px; color: var(--text-3);
+  min-height: var(--control-h-xs);
   padding: 5px 10px; border-radius: var(--r-md);
   background: transparent;
   border: 1px solid var(--border);
@@ -714,7 +765,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   background: rgba(43, 41, 38, 0.28);
 }
 .modal-panel {
-  width: min(640px, 100%);
+  width: min(var(--layout-modal), 100%);
   max-height: min(720px, calc(100vh - 48px));
   background: var(--surface);
   border: 1px solid var(--border);
@@ -819,7 +870,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 }
 
 .btn-primary {
-  height: 30px; padding: 0 14px;
+  min-height: var(--control-h-sm); padding: 0 14px;
   border-radius: var(--r-md);
   background: var(--text); color: var(--surface);
   border: 0;
@@ -833,7 +884,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   cursor: not-allowed;
 }
 .btn-secondary {
-  height: 28px; padding: 0 12px;
+  min-height: var(--control-h-xs); padding: 0 12px;
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--border-strong);
@@ -929,7 +980,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 
 .result-tools { margin-left: auto; display: flex; gap: 4px; }
 .icon-btn {
-  width: 28px; height: 28px;
+  width: var(--control-h-xs); height: var(--control-h-xs);
   display: grid; place-items: center;
   border-radius: 6px;
   border: 0; background: transparent;
@@ -1227,7 +1278,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   flex-wrap: wrap;
 }
 .inbox-size-control {
-  height: 28px;
+  min-height: var(--control-h-xs);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1235,7 +1286,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   font-size: 12px;
 }
 .inbox-size-control select {
-  height: 28px;
+  min-height: var(--control-h-xs);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
   background: var(--surface);
@@ -1414,10 +1465,44 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--stack-gap, 10px);
 }
 
 /* ─── Misc ───────────────────────────────────────────────── */
+.layout-container {
+  width: min(100%, var(--layout-page));
+  margin-inline: auto;
+}
+.layout-container.is-wide { width: min(100%, var(--layout-page-wide)); }
+.layout-container.is-narrow { width: min(100%, var(--layout-page-narrow)); }
+.stack-xs { --stack-gap: var(--space-1); }
+.stack-sm { --stack-gap: var(--space-2); }
+.stack-md { --stack-gap: var(--space-4); }
+.stack-lg { --stack-gap: var(--space-6); }
+.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--inline-gap, var(--space-2));
+}
+.inline-sm { --inline-gap: var(--space-1); }
+.inline-md { --inline-gap: var(--space-3); }
+.cluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cluster-gap, var(--space-2));
+}
+.touch-target {
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+}
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.mobile-only { display: revert; }
+.sm-up-only,
+.md-up-only { display: none !important; }
 .divider {
   height: 1px; background: var(--border-faint);
   margin: 4px 0;
@@ -1425,14 +1510,53 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .muted { color: var(--text-3); }
 .small { font-size: 12px; }
 .flex { display: flex; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-.gap-4 { gap: 16px; }
+.gap-1 { gap: var(--space-1); }
+.gap-2 { gap: var(--space-2); }
+.gap-3 { gap: var(--space-3); }
+.gap-4 { gap: var(--space-4); }
 .row { display: flex; align-items: center; }
 .between { justify-content: space-between; }
 .grow { flex: 1; }
-.mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; }
-.mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; }
+.mt-1 { margin-top: var(--space-1); } .mt-2 { margin-top: var(--space-2); }
+.mt-3 { margin-top: var(--space-3); } .mt-4 { margin-top: var(--space-4); }
+
+@media (min-width: 640px) {
+  .mobile-only { display: none !important; }
+  .sm-up-only { display: revert !important; }
+  .sm-row { flex-direction: row; }
+  .sm-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sm-nowrap { flex-wrap: nowrap; }
+}
+
+@media (min-width: 1024px) {
+  .md-up-only { display: revert !important; }
+  .md-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (pointer: coarse) {
+  .side-item,
+  .side-person,
+  .topbar-btn,
+  .btn-primary,
+  .btn-secondary,
+  .icon-btn,
+  .auth-tab,
+  .recipient-change,
+  .inbox-size-control select,
+  .form-grid input,
+  .form-grid select {
+    min-height: var(--touch-target-min);
+  }
+  .icon-btn {
+    min-width: var(--touch-target-min);
+  }
+}
 
 /* Hide scrollbars on overflow regions but keep functionality */
 .thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
