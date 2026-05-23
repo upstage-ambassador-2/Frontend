@@ -155,7 +155,14 @@ export function LoginScreen({ onToast }: Props) {
     <div className="auth-shell">
       <div className="auth-brand">
         <div className="auth-brand-h">
-          <div className="auth-brand-mark">M</div>
+          <img
+            className="auth-brand-mark"
+            src="/mello-logo.png"
+            width={30}
+            height={30}
+            alt=""
+            aria-hidden="true"
+          />
           <span className="auth-brand-name">Mello</span>
           <span className="auth-brand-badge">beta</span>
         </div>
