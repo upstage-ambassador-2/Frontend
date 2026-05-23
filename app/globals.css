@@ -2337,14 +2337,118 @@ textarea {
 .integration-icon {
   font: 600 11px/1 var(--mono);
 }
-.settings-row {
-  padding: 10px 0;
-  font-size: 13.5px;
+.settings-page {
+  width: 100%;
+  max-width: var(--layout-page-narrow);
+}
+.settings-account-card .card-b {
+  padding-top: 14px;
+}
+.settings-account-summary {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border-faint);
+  min-width: 0;
+}
+.settings-account-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: #dfe3da;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.settings-account-copy,
+.settings-integration-copy,
+.settings-value {
+  min-width: 0;
+}
+.settings-account-copy {
+  flex: 1;
+}
+.settings-account-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-account-mail {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 12px;
+  direction: ltr;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border-faint);
+  font-size: 13.5px;
+  min-width: 0;
+}
+.settings-row:last-child {
+  border-bottom: 0;
 }
 .settings-key {
   width: 180px;
+  flex: 0 0 180px;
   color: var(--text-3);
+}
+.settings-value {
+  flex: 1;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.settings-value-main {
+  min-width: 0;
+}
+.settings-value-sub {
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.settings-row-action {
+  flex: 0 0 auto;
+}
+.settings-row-action .btn-secondary {
+  justify-content: center;
+}
+.settings-integration {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  min-width: 0;
+}
+.settings-integration-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+}
+.settings-integration-copy {
+  flex: 1;
+}
+.settings-integration > .tag {
+  flex: 0 0 auto;
+}
+.settings-integration > .btn-secondary {
+  flex: 0 0 auto;
+  justify-content: center;
 }
 .stack {
   display: flex;
@@ -2515,6 +2619,55 @@ textarea {
 }
 
 @media (min-width: 641px) and (max-width: 720px) {
+  .mello-shell.route-settings {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .mello-shell.route-settings .side {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .mello-shell.route-settings .side-brand,
+  .mello-shell.route-settings .side-search,
+  .mello-shell.route-settings .side-section,
+  .mello-shell.route-settings .side-people,
+  .mello-shell.route-settings .side-foot {
+    display: none;
+  }
+  .mello-shell.route-settings .side-nav {
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px 10px;
+  }
+  .mello-shell.route-settings .side-item {
+    width: auto;
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+  .mello-shell.route-settings .side-item-count {
+    display: none;
+  }
+  .mello-shell.route-settings .topbar {
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+  .mello-shell.route-settings .crumb {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .mello-shell.route-settings .crumb .now {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mello-shell.route-settings .main-scroll {
+    padding: 18px 14px calc(28px + env(safe-area-inset-bottom));
+  }
+
   .mello-shell.route-history,
   .mello-shell.route-format {
     grid-template-columns: 1fr;
@@ -2881,6 +3034,102 @@ textarea {
   }
 }
 
+@media (max-width: 720px) {
+  .settings-page {
+    max-width: none;
+    gap: 14px;
+  }
+  .settings-page .page-title {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .settings-page .page-title-text {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .settings-account-card .card-b,
+  .settings-integration-card .card-b,
+  .settings-notification-card .card-b {
+    padding: 14px;
+  }
+  .settings-account-summary {
+    align-items: flex-start;
+    gap: 10px;
+    padding-bottom: 14px;
+    margin-bottom: 0;
+  }
+  .settings-account-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+  }
+  .settings-account-summary > .tag {
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+  .settings-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "key action"
+      "value value";
+    gap: 6px 10px;
+    align-items: start;
+    padding: 13px 0;
+  }
+  .settings-key {
+    grid-area: key;
+    width: auto;
+    flex-basis: auto;
+    font-size: 12.5px;
+  }
+  .settings-value {
+    grid-area: value;
+    width: 100%;
+    font-size: 13.5px;
+  }
+  .settings-row-action {
+    grid-area: action;
+    justify-self: end;
+  }
+  .settings-row-action .btn-secondary {
+    min-width: 88px;
+    min-height: 40px;
+  }
+  .settings-integration-card .stack {
+    gap: 0;
+  }
+  .settings-integration {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon copy status"
+      "action action action";
+    align-items: start;
+    gap: 8px 10px;
+    padding: 13px 0;
+  }
+  .settings-integration + .settings-integration {
+    border-top: 1px solid var(--border-faint);
+  }
+  .settings-integration .integration-icon {
+    grid-area: icon;
+  }
+  .settings-integration-copy {
+    grid-area: copy;
+  }
+  .settings-integration > .tag {
+    grid-area: status;
+    justify-self: end;
+  }
+  .settings-integration > .btn-secondary {
+    grid-area: action;
+    width: 100%;
+    min-height: var(--touch-target-min);
+  }
+}
+
 @media (max-width: 640px) {
   .format-page .page-title {
     flex-direction: column;
@@ -2963,6 +3212,40 @@ textarea {
 }
 
 @media (max-width: 480px) {
+  .settings-account-summary {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+  .settings-account-summary > .tag {
+    grid-column: 1 / -1;
+    justify-content: center;
+    margin-left: 0;
+    min-height: 32px;
+  }
+  .settings-row {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "key"
+      "value"
+      "action";
+  }
+  .settings-row-action {
+    justify-self: stretch;
+  }
+  .settings-row-action .btn-secondary {
+    width: 100%;
+    min-height: var(--touch-target-min);
+  }
+  .settings-integration {
+    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-areas:
+      "icon copy"
+      "status status"
+      "action action";
+  }
+  .settings-integration > .tag {
+    justify-self: start;
+  }
   .history-actions {
     align-items: stretch;
     flex-direction: column;

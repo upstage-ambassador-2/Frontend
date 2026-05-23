@@ -1160,21 +1160,21 @@ function Row({
   k,
   v,
   action,
-  last,
+  sub,
 }: {
   k: string;
   v: ReactNode;
   action?: ReactNode;
-  last?: boolean;
+  sub?: ReactNode;
 }) {
   return (
-    <div
-      className="row settings-row"
-      style={{ borderBottom: last ? 0 : "1px solid var(--border-faint)" }}
-    >
+    <div className="settings-row">
       <div className="settings-key">{k}</div>
-      <div className="grow">{v}</div>
-      {action}
+      <div className="settings-value">
+        <div className="settings-value-main">{v}</div>
+        {sub && <div className="settings-value-sub">{sub}</div>}
+      </div>
+      {action && <div className="settings-row-action">{action}</div>}
     </div>
   );
 }
@@ -1191,10 +1191,12 @@ function Integration({
   onClick: () => void;
 }) {
   return (
-    <div className="row gap-3" style={{ padding: "8px 4px" }}>
-      <div className="integration-icon">{title.slice(0, 1)}</div>
-      <div className="grow">
-        <div style={{ fontSize: 13.5, fontWeight: 500 }}>{title}</div>
+    <div className="settings-integration">
+      <div className="integration-icon" aria-hidden="true">
+        {title.slice(0, 1)}
+      </div>
+      <div className="settings-integration-copy">
+        <div className="settings-integration-title">{title}</div>
         <div className="small muted">{desc}</div>
       </div>
       <span className={`tag ${on ? "green" : "gray"}`}>
@@ -1224,21 +1226,34 @@ export function SettingsScreen({
       onToast(error instanceof Error ? error.message : "통합 상태를 처리하지 못했습니다");
     }
   };
+  const userName = me?.user.name || "로그인 사용자";
+  const userEmail = me?.user.email || "mello@example.com";
 
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
+    <div className="page settings-page">
       <PageTitle title="설정" desc="계정과 통합을 관리합니다." />
 
-      <div className="card">
+      <div className="card settings-account-card">
         <div className="card-h">
           <div className="card-h-title">계정</div>
         </div>
         <div className="card-b">
-          <Row k="이메일" v={me?.user.email || "-"} />
-          <Row k="이름" v={me?.user.name || "-"} />
+          <div className="settings-account-summary">
+            <div className="settings-account-avatar">
+              {initialsFrom(userName || userEmail)}
+            </div>
+            <div className="settings-account-copy">
+              <div className="settings-account-name">{userName}</div>
+              <div className="settings-account-mail">{userEmail}</div>
+            </div>
+            <span className="tag amber">Free · 30회 / 월</span>
+          </div>
+          <Row k="이메일" v={userEmail} />
+          <Row k="이름" v={userName} />
           <Row
             k="요금제"
             v={<span className="tag amber">Free · 30회 / 월</span>}
+            sub="백엔드 quota enforcement 없이 정적 라벨로 표시됩니다."
           />
           <Row
             k="세션"
@@ -1248,12 +1263,11 @@ export function SettingsScreen({
                 로그아웃
               </button>
             }
-            last
           />
         </div>
       </div>
 
-      <div className="card">
+      <div className="card settings-integration-card">
         <div className="card-h">
           <div className="card-h-title">통합</div>
         </div>
@@ -1285,13 +1299,13 @@ export function SettingsScreen({
         </div>
       </div>
 
-      <div className="card">
+      <div className="card settings-notification-card">
         <div className="card-h">
           <div className="card-h-title">알림</div>
         </div>
         <div className="card-b">
           <Row k="새 페르소나 추천 알림" v={<span className="tag green">켜짐</span>} />
-          <Row k="월간 사용 리포트" v={<span className="tag gray">꺼짐</span>} last />
+          <Row k="월간 사용 리포트" v={<span className="tag gray">꺼짐</span>} />
         </div>
       </div>
     </div>
