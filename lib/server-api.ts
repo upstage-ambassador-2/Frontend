@@ -2,7 +2,12 @@ import "server-only";
 
 import { cache } from "react";
 import { cookies } from "next/headers";
-import type { HistoryItem, MailFormat, Persona } from "./data";
+import {
+  normalizePersonas,
+  type HistoryItem,
+  type MailFormat,
+  type Persona,
+} from "./data";
 import {
   DEFAULT_GMAIL_PAGE_SIZE,
   normalizeGmailPageSize,
@@ -68,7 +73,9 @@ export const getServerInitial = cache(async (): Promise<InitialState> => {
   }
 
   const [personas, history, format] = await Promise.all([
-    fetchJson<Persona[]>("/personas", header).catch(() => [] as Persona[]),
+    fetchJson<Persona[]>("/personas", header)
+      .then(normalizePersonas)
+      .catch(() => [] as Persona[]),
     fetchJson<HistoryItem[]>("/history", header).catch(
       () => [] as HistoryItem[],
     ),

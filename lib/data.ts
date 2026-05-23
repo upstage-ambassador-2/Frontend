@@ -2,11 +2,63 @@
 
 export type TagColor = "amber" | "blue" | "green" | "rose" | "violet" | "gray";
 
+export const PERSONA_TONE_OPTIONS = [
+  "매우 격식",
+  "격식",
+  "중립",
+  "친근",
+  "매우 친근",
+] as const;
+
+export type PersonaTone = (typeof PERSONA_TONE_OPTIONS)[number];
+
+const PERSONA_TONE_SET: ReadonlySet<string> = new Set(PERSONA_TONE_OPTIONS);
+
+export function normalizePersonaTone(value: string | null | undefined): PersonaTone {
+  const tone = value?.trim();
+  if (!tone) return "중립";
+  if (PERSONA_TONE_SET.has(tone)) return tone as PersonaTone;
+
+  if (
+    tone.includes("매우") &&
+    (tone.includes("격식") || tone.includes("정중") || tone.includes("공식"))
+  ) {
+    return "매우 격식";
+  }
+  if (
+    tone.includes("매우") &&
+    (tone.includes("친근") || tone.includes("캐주얼") || tone.includes("편한"))
+  ) {
+    return "매우 친근";
+  }
+  if (
+    tone.includes("격식") ||
+    tone.includes("정중") ||
+    tone.includes("공손") ||
+    tone.includes("예의") ||
+    tone.includes("공식")
+  ) {
+    return "격식";
+  }
+  if (
+    tone.includes("친근") ||
+    tone.includes("따뜻") ||
+    tone.includes("편한") ||
+    tone.includes("캐주얼") ||
+    tone.includes("친구") ||
+    tone.includes("가족")
+  ) {
+    return "친근";
+  }
+
+  return "중립";
+}
+
 export type Persona = {
   id: string;
   name: string;
   relation: string;
-  tone?: string;
+  tone?: PersonaTone;
   notes?: string;
   email?: string;
   source?: "manual" | "contacts" | string;
@@ -23,6 +75,17 @@ export type Persona = {
   lastUsed: string;
   tagColor: TagColor;
 };
+
+export function normalizePersona(persona: Persona): Persona {
+  return {
+    ...persona,
+    tone: normalizePersonaTone(persona.tone),
+  };
+}
+
+export function normalizePersonas(personas: Persona[]): Persona[] {
+  return personas.map(normalizePersona);
+}
 
 export type Scenario = {
   brief: string;

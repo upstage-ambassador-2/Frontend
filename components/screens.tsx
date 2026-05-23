@@ -11,7 +11,13 @@ import {
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
+import {
+  PERSONA_TONE_OPTIONS,
+  normalizePersonaTone,
+  type HistoryItem,
+  type MailFormat,
+  type Persona,
+} from "@/lib/data";
 import {
   GMAIL_PAGE_SIZE_OPTIONS,
   api,
@@ -96,7 +102,7 @@ function draftFromPersona(persona: Persona): PersonaDraft {
     id: persona.id,
     name: persona.name,
     relation: persona.relation,
-    tone: persona.tone || "중립",
+    tone: normalizePersonaTone(persona.tone),
     notes: persona.notes || "",
     email: persona.email || "",
     role: persona.role || "",
@@ -218,11 +224,21 @@ function PersonaDialog({
             </label>
             <label>
               <span>톤</span>
-              <input
-                value={draft.tone}
-                onChange={(event) => onChange({ ...draft, tone: event.target.value })}
-                placeholder="결론 우선"
-              />
+              <select
+                value={normalizePersonaTone(draft.tone)}
+                onChange={(event) =>
+                  onChange({
+                    ...draft,
+                    tone: normalizePersonaTone(event.target.value),
+                  })
+                }
+              >
+                {PERSONA_TONE_OPTIONS.map((tone) => (
+                  <option key={tone} value={tone}>
+                    {tone}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               <span>키워드</span>
@@ -422,7 +438,7 @@ export function PeopleScreen({
       const payload: PersonaPayload = {
         name: draft.name.trim(),
         relation: draft.relation.trim(),
-        tone: draft.tone.trim() || "중립",
+        tone: normalizePersonaTone(draft.tone),
         notes: draft.notes.trim(),
         email: draft.email.trim(),
         role: draft.role.trim(),
@@ -536,7 +552,7 @@ export function PeopleScreen({
                     {hasEmail ? "이메일 연결됨" : "이메일 없음"}
                   </span>
                   <span className={`tag ${persona.tagColor || "gray"}`}>
-                    {persona.tone || "중립"}
+                    {normalizePersonaTone(persona.tone)}
                   </span>
                   {(persona.keywords || []).slice(0, 2).map((keyword, index) => (
                     <span key={index} className={`tag ${persona.tagColor || "gray"}`}>

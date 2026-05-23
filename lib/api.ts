@@ -1,4 +1,11 @@
-import type { HistoryItem, MailFormat, Persona } from "./data";
+import {
+  normalizePersona,
+  normalizePersonas,
+  type HistoryItem,
+  type MailFormat,
+  type Persona,
+  type PersonaTone,
+} from "./data";
 
 const GET_DEDUPE_TTL_MS = 750;
 const getJsonRequests = new Map<
@@ -100,7 +107,7 @@ export type GeneratePayload = {
 export type PersonaPayload = {
   name: string;
   relation: string;
-  tone: string;
+  tone: PersonaTone;
   notes: string;
   email?: string;
   role?: string;
@@ -235,24 +242,30 @@ export const api = {
   health: () => apiJson<{ status: string }>("/health"),
   me: () => apiJson<MeResponse>("/me"),
   logout: () => apiFetch("/auth/logout", { method: "POST" }),
-  personas: () => apiJson<Persona[]>("/personas"),
+  personas: () => apiJson<Persona[]>("/personas").then(normalizePersonas),
   createPersona: (payload: PersonaPayload) =>
     apiJson<Persona>("/personas", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizePersona),
   updatePersona: (id: string, payload: PersonaPayload) =>
     apiJson<Persona>(`/personas/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizePersona),
   deletePersona: (id: string) =>
     apiFetch(`/personas/${id}`, { method: "DELETE" }),
-  importContacts: () =>
-    apiJson<{ imported: number; skipped: number; personas: Persona[] }>(
+  importContacts: async () => {
+    const result = await apiJson<{
+      imported: number;
+      skipped: number;
+      personas: Persona[];
+    }>(
       "/personas/import-contacts",
       { method: "POST", body: JSON.stringify({ limit: 20 }) },
-    ),
+    );
+    return { ...result, personas: normalizePersonas(result.personas) };
+  },
   history: () => apiJson<HistoryItem[]>("/history"),
   format: () => apiJson<MailFormat>("/format"),
   updateFormat: (payload: Partial<MailFormat>) =>
