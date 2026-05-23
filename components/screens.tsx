@@ -710,7 +710,7 @@ export function InboxScreen({
       : `전체 약 ${initialPage.resultSizeEstimate}개 중 ${messages.length}개 표시`;
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page inbox-page" style={{ maxWidth: 1040 }}>
       <PageTitle
         title="받은편지함"
         desc="최근 Gmail 메일을 고르면 작성 화면에서 답장 초안을 만들 수 있습니다."
@@ -798,11 +798,13 @@ export function InboxScreen({
               title={`${message.sender.name} · ${message.subjectText}`}
             >
               <div className="inbox-from" title={message.fromAddr}>
-                <span className="inbox-from-name">{message.sender.name}</span>
+                <div className="inbox-sender-line">
+                  <span className="inbox-from-name">{message.sender.name}</span>
+                  {!match.matched && <span className="tag amber">신규</span>}
+                </div>
                 {message.sender.email && (
                   <span className="inbox-from-email">{message.sender.email}</span>
                 )}
-                {!match.matched && <span className="tag amber">신규</span>}
               </div>
               <div className="inbox-main">
                 <div className="inbox-subject" title={message.subjectText}>
