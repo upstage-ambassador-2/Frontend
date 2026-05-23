@@ -152,7 +152,7 @@ let history = [
   },
 ];
 
-const gmailMessages = [
+const baseGmailMessages = [
   {
     id: "gmail-reply-basic",
     threadId: "thread-basic-1",
@@ -195,6 +195,36 @@ const gmailMessages = [
       "Q3 분석에 사용할 Q2 퍼널 전환율 원본 시트를 공유드릴 수 있습니다.\n다만 모바일/웹 구분 기준을 먼저 확인하고 싶습니다. 기준 확정 후 원본 링크를 보내드리겠습니다.",
   },
 ];
+
+const generatedGmailMessages = Array.from({ length: 42 }, (_, index) => {
+  const displayIndex = index + 4;
+  const senders = [
+    "김지훈 팀장 <lead@mello.test>",
+    "박서연 책임 <partner@mello.test>",
+    "이민호 사원 <colleague@mello.test>",
+    "정다은 <friend@mello.test>",
+  ];
+  const sender = senders[index % senders.length];
+  const padded = String(displayIndex).padStart(2, "0");
+
+  return {
+    id: `gmail-page-${padded}`,
+    threadId: `thread-page-${padded}`,
+    fromAddr: sender,
+    from: sender,
+    subject: `[후속] Mello pagination fixture ${padded}`,
+    snippet:
+      "페이지네이션 검증을 위한 mock Gmail 메시지입니다. 목록 이동과 pageToken 보존을 확인합니다.",
+    date: shortDate(300 + index * 35),
+    messageId: `<gmail-page-${padded}@mello.test>`,
+    references: index % 3 === 0 ? `<gmail-page-prev-${padded}@mello.test>` : null,
+    rawBody:
+      `안녕하세요, 오지송님.\n\n이 메일은 받은편지함 pagination 로컬 검증용 fixture ${padded}입니다.\n` +
+      "다음/이전 이동과 페이지 크기 변경 후에도 답장 컨텍스트가 유지되는지 확인해 주세요.",
+  };
+});
+
+const gmailMessages = [...baseGmailMessages, ...generatedGmailMessages];
 
 function sendJson(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
@@ -649,11 +679,31 @@ async function handler(req, res) {
     }
 
     if (req.method === "GET" && path === "/gmail/messages") {
-      const limit = Number(url.searchParams.get("limit") || 30);
+      const requestedLimit = Number(url.searchParams.get("limit") || 30);
+      const limit = [10, 30, 50].includes(requestedLimit) ? requestedLimit : 30;
+      const pageToken = url.searchParams.get("pageToken");
+      const tokenOffset =
+        pageToken && pageToken.startsWith("mock-page-")
+          ? Number(pageToken.replace("mock-page-", ""))
+          : 0;
+      const start = Number.isFinite(tokenOffset)
+        ? Math.min(Math.max(tokenOffset, 0), gmailMessages.length)
+        : 0;
+      const end = start + limit;
+      const nextPageToken =
+        end < gmailMessages.length ? `mock-page-${end}` : null;
       sendJson(
         res,
         200,
-        gmailMessages.slice(0, limit).map(({ rawBody, ...message }) => message),
+        {
+          messages: gmailMessages
+            .slice(start, end)
+            .map(({ rawBody, ...message }) => message),
+          nextPageToken,
+          resultSizeEstimate: gmailMessages.length,
+          limit,
+          hasMore: Boolean(nextPageToken),
+        },
         headers,
       );
       return;

@@ -1049,6 +1049,52 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 }
 
 /* ─── Inbox ──────────────────────────────────────────────── */
+.inbox-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.inbox-size-control {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.inbox-size-control select {
+  height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-2);
+  font: 500 12.5px/1 var(--font);
+  padding: 0 28px 0 10px;
+}
+.inbox-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.inbox-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.inbox-pager .btn-secondary {
+  min-width: 58px;
+  justify-content: center;
+}
+.inbox-page-label {
+  min-width: 54px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
 .inbox-card { padding: 0; overflow: hidden; }
 .inbox-row {
   width: 100%;

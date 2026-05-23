@@ -31,7 +31,7 @@
 | 인증 & 세션 | [`docs/e2e/01-auth-session.md`](./e2e/01-auth-session.md) | P0 | `/auth/google/start`, `/auth/google/callback`, `/me`, `/auth/logout` |
 | 셸 & 내비게이션 | [`docs/e2e/02-shell-navigation.md`](./e2e/02-shell-navigation.md) | P0 | `/me`, `/personas`, `/history` |
 | 작성 & AI 생성 | [`docs/e2e/03-compose-generation.md`](./e2e/03-compose-generation.md) | P0 | `POST /ai/generate` SSE |
-| 받은편지함 & 답장 진입 | [`docs/e2e/04-inbox-reply.md`](./e2e/04-inbox-reply.md) | P0 | `/gmail/messages`, `/gmail/messages/{id}` |
+| 받은편지함 & 답장 진입 | [`docs/e2e/04-inbox-reply.md`](./e2e/04-inbox-reply.md) | P0 | `/gmail/messages?limit&pageToken`, `/gmail/messages/{id}` |
 | Gmail 발송 | [`docs/e2e/05-gmail-send.md`](./e2e/05-gmail-send.md) | P0 | `POST /gmail/send` |
 | 사람/페르소나 | [`docs/e2e/06-people-personas.md`](./e2e/06-people-personas.md) | P1 | `/personas`, `/personas/import-contacts` |
 | 히스토리 | [`docs/e2e/07-history.md`](./e2e/07-history.md) | P1 | `/history`, `/history/{id}` |
