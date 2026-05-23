@@ -2,15 +2,16 @@
 
 import { InboxScreen } from "@/components/screens";
 import { useMello } from "@/components/MelloShell";
-import type { GmailMessage } from "@/lib/api";
+import type { GmailMessage, PaginatedGmailMessages } from "@/lib/api";
 import { composeHref } from "@/lib/routes";
 
 type Props = {
-  initialMessages: GmailMessage[];
+  initialPage: PaginatedGmailMessages;
   initialError: string | null;
+  pageToken: string | null;
 };
 
-export function InboxRoute({ initialMessages, initialError }: Props) {
+export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
   const { personas, selectedId } = useMello();
 
   const replyHrefForMessage = (message: GmailMessage) => {
@@ -24,8 +25,9 @@ export function InboxRoute({ initialMessages, initialError }: Props) {
 
   return (
     <InboxScreen
-      initialMessages={initialMessages}
+      initialPage={initialPage}
       initialError={initialError}
+      pageToken={pageToken}
       replyHrefForMessage={replyHrefForMessage}
     />
   );

@@ -50,7 +50,7 @@ export function Topbar({ route, crumb, onResetCompose }: Props) {
       )}
       {route === "inbox" && (
         <span className="format-pill" style={{ background: "var(--surface-2)" }}>
-          Gmail · 최근 30개
+          Gmail · 페이지 단위 조회
         </span>
       )}
     </div>

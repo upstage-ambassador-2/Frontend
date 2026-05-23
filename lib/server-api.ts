@@ -3,7 +3,14 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import type { HistoryItem, MailFormat, Persona } from "./data";
-import type { GmailMessage, GmailMessageDetail, MeResponse } from "./api";
+import {
+  DEFAULT_GMAIL_PAGE_SIZE,
+  normalizeGmailPageSize,
+  type GmailMessage,
+  type GmailMessageDetail,
+  type MeResponse,
+  type PaginatedGmailMessages,
+} from "./api";
 
 const API_BASE = process.env.MELLO_API_URL || "http://localhost:4010";
 
@@ -71,19 +78,60 @@ export const getServerInitial = cache(async (): Promise<InitialState> => {
   return { auth: "in", me, personas, history, format };
 });
 
-export async function getServerGmailMessages(): Promise<
-  ServerDataResult<GmailMessage[]>
-> {
+type GmailMessageQuery = {
+  limit?: string | number;
+  pageToken?: string | null;
+};
+
+const EMPTY_GMAIL_PAGE: PaginatedGmailMessages = {
+  messages: [],
+  nextPageToken: null,
+  resultSizeEstimate: null,
+  limit: DEFAULT_GMAIL_PAGE_SIZE,
+  hasMore: false,
+};
+
+function normalizeGmailMessagesResponse(
+  data: PaginatedGmailMessages | GmailMessage[],
+  limit: number,
+): PaginatedGmailMessages {
+  if (Array.isArray(data)) {
+    return {
+      messages: data,
+      nextPageToken: null,
+      resultSizeEstimate: data.length,
+      limit,
+      hasMore: false,
+    };
+  }
+
+  return {
+    messages: data.messages,
+    nextPageToken: data.nextPageToken ?? null,
+    resultSizeEstimate: data.resultSizeEstimate ?? null,
+    limit: data.limit || limit,
+    hasMore: Boolean(data.hasMore || data.nextPageToken),
+  };
+}
+
+export async function getServerGmailMessages({
+  limit: limitParam,
+  pageToken,
+}: GmailMessageQuery = {}): Promise<ServerDataResult<PaginatedGmailMessages>> {
+  const limit = normalizeGmailPageSize(limitParam);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (pageToken) params.set("pageToken", pageToken);
+
   try {
-    const data = await fetchJson<GmailMessage[]>(
-      "/gmail/messages?limit=30",
+    const data = await fetchJson<PaginatedGmailMessages | GmailMessage[]>(
+      `/gmail/messages?${params.toString()}`,
       cookieHeader(),
     );
-    return { ok: true, data };
+    return { ok: true, data: normalizeGmailMessagesResponse(data, limit) };
   } catch (error) {
     return {
       ok: false,
-      data: [],
+      data: { ...EMPTY_GMAIL_PAGE, limit },
       error:
         error instanceof Error
           ? error.message

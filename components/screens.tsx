@@ -6,9 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import {
+  GMAIL_PAGE_SIZE_OPTIONS,
   api,
+  normalizeGmailPageSize,
   type GmailMessage,
   type MeResponse,
+  type PaginatedGmailMessages,
   type PersonaPayload,
 } from "@/lib/api";
 import { PersonaAvatar } from "./PersonaAvatar";
@@ -362,19 +365,24 @@ export function PeopleScreen({
 }
 
 export function InboxScreen({
-  initialMessages,
+  initialPage,
   initialError,
+  pageToken,
   replyHrefForMessage,
 }: {
-  initialMessages: GmailMessage[];
+  initialPage: PaginatedGmailMessages;
   initialError: string | null;
+  pageToken: string | null;
   replyHrefForMessage: (message: GmailMessage) => string;
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const [navigating, startNavigation] = useTransition();
+  const [tokenHistory, setTokenHistory] = useState<Record<string, string>>({});
+  const currentLimit = normalizeGmailPageSize(initialPage.limit);
   const messages = useMemo(
     () =>
-      initialMessages.map((message) => {
+      initialPage.messages.map((message) => {
         const sender = parseInboxSender(message.fromAddr || message.from || "");
         return {
           ...message,
@@ -384,12 +392,77 @@ export function InboxScreen({
           dateText: formatInboxDate(message.date),
         };
       }),
-    [initialMessages],
+    [initialPage.messages],
   );
+  const busy = refreshing || navigating;
+  const previousToken = pageToken ? tokenHistory[pageToken] : undefined;
+  const canGoPrevious = Boolean(pageToken && previousToken !== undefined);
+  const canGoNext = Boolean(initialPage.hasMore && initialPage.nextPageToken);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(
+        `mello:inbox:token-history:${currentLimit}`,
+      );
+      setTokenHistory(
+        saved ? (JSON.parse(saved) as Record<string, string>) : {},
+      );
+    } catch {
+      setTokenHistory({});
+    }
+  }, [currentLimit]);
+
+  const inboxHref = (limit: number, token: string | null) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (token) params.set("pageToken", token);
+    return `/inbox?${params.toString()}`;
+  };
+
+  const rememberPreviousToken = (
+    nextToken: string,
+    currentToken: string | null,
+  ) => {
+    setTokenHistory((current) => {
+      const updated = { ...current, [nextToken]: currentToken ?? "" };
+      try {
+        window.sessionStorage.setItem(
+          `mello:inbox:token-history:${currentLimit}`,
+          JSON.stringify(updated),
+        );
+      } catch {
+        // Session history is only an enhancement for cursor-based previous nav.
+      }
+      return updated;
+    });
+  };
 
   const load = () => {
     startRefresh(() => router.refresh());
   };
+
+  const goNext = () => {
+    const nextToken = initialPage.nextPageToken;
+    if (!nextToken) return;
+    rememberPreviousToken(nextToken, pageToken);
+    startNavigation(() => router.push(inboxHref(currentLimit, nextToken)));
+  };
+
+  const goPrevious = () => {
+    if (!canGoPrevious) return;
+    startNavigation(() =>
+      router.push(inboxHref(currentLimit, previousToken || null)),
+    );
+  };
+
+  const changePageSize = (value: string) => {
+    const nextLimit = normalizeGmailPageSize(value);
+    startNavigation(() => router.push(inboxHref(nextLimit, null)));
+  };
+
+  const countText =
+    initialPage.resultSizeEstimate == null
+      ? `${messages.length}개 표시`
+      : `전체 약 ${initialPage.resultSizeEstimate}개 중 ${messages.length}개 표시`;
 
   return (
     <div className="page" style={{ maxWidth: 1040 }}>
@@ -397,26 +470,77 @@ export function InboxScreen({
         title="받은편지함"
         desc="최근 Gmail 메일을 고르면 작성 화면에서 답장 초안을 만들 수 있습니다."
         action={
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => void load()}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <span className="result-spinner" aria-hidden />
-            ) : (
-              <IconRefresh size={13} />
-            )}
-            {refreshing ? "새로고침 중" : "새로고침"}
-          </button>
+          <div className="inbox-actions">
+            <label className="inbox-size-control">
+              <span>페이지 크기</span>
+              <select
+                value={currentLimit}
+                onChange={(event) => changePageSize(event.target.value)}
+                disabled={busy}
+              >
+                {GMAIL_PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}개
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void load()}
+              disabled={busy}
+            >
+              {refreshing ? (
+                <span className="result-spinner" aria-hidden />
+              ) : (
+                <IconRefresh size={13} />
+              )}
+              {refreshing ? "새로고침 중" : "새로고침"}
+            </button>
+          </div>
         }
       />
 
+      <div className="inbox-meta">
+        <div className="small muted">
+          {initialError ? "받은편지함을 불러오지 못했습니다." : countText}
+          {pageToken && <span> · cursor 페이지</span>}
+        </div>
+        <div className="inbox-pager" aria-label="받은편지함 페이지 이동">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={goPrevious}
+            disabled={!canGoPrevious || busy}
+          >
+            이전
+          </button>
+          <span className="inbox-page-label">
+            {pageToken ? "이후 메일" : "첫 페이지"}
+          </span>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={goNext}
+            disabled={!canGoNext || busy}
+          >
+            {navigating ? (
+              <span className="result-spinner" aria-hidden />
+            ) : null}
+            다음
+          </button>
+        </div>
+      </div>
+
       <div className="card inbox-card">
         {initialError && <div className="state-row error-text">{initialError}</div>}
-        {!initialError && initialMessages.length === 0 && (
-          <div className="state-row">최근 받은 메일이 없습니다.</div>
+        {!initialError && messages.length === 0 && (
+          <div className="state-row">
+            {pageToken
+              ? "이 페이지에는 표시할 메일이 없습니다. 이전 페이지로 돌아가거나 페이지 크기를 변경해 주세요."
+              : "최근 받은 메일이 없습니다."}
+          </div>
         )}
         {messages.map((message) => (
           <Link
