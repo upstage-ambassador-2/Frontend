@@ -103,6 +103,10 @@ export type PersonaPayload = {
   tone: string;
   notes: string;
   email?: string;
+  role?: string;
+  keywords?: string[];
+  avoid?: string[];
+  prefer?: string;
 };
 
 export type SendPayload = {

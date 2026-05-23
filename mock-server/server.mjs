@@ -522,6 +522,17 @@ function applyPersonaFields(base, payload) {
   const email = hasEmailField
     ? String(payload.email || "").trim()
     : base.email || "";
+  const listField = (name, fallback) => {
+    if (!Object.prototype.hasOwnProperty.call(payload, name)) return fallback;
+    const value = payload[name];
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item).trim()).filter(Boolean);
+    }
+    return String(value || "")
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
   const channel = hasEmailField
     ? email
       ? "이메일"
@@ -535,7 +546,9 @@ function applyPersonaFields(base, payload) {
     notes: payload.notes || "",
     email,
     source: base.source || "manual",
-    role: base.role || "",
+    role: Object.prototype.hasOwnProperty.call(payload, "role")
+      ? String(payload.role || "").trim()
+      : base.role || "",
     mbti: base.mbti || "",
     avatar:
       base.avatar ||
@@ -546,9 +559,14 @@ function applyPersonaFields(base, payload) {
         .toUpperCase()
         .slice(0, 2),
     color: base.color || "#dfe3da",
-    keywords: base.keywords?.length ? base.keywords : [payload.tone || "중립"],
-    avoid: base.avoid || [],
-    prefer: base.prefer || payload.notes || "",
+    keywords: listField(
+      "keywords",
+      base.keywords?.length ? base.keywords : [payload.tone || "중립"],
+    ),
+    avoid: listField("avoid", base.avoid || []),
+    prefer: Object.prototype.hasOwnProperty.call(payload, "prefer")
+      ? String(payload.prefer || "").trim()
+      : base.prefer || payload.notes || "",
     channel,
     lastUsed: base.lastUsed || "없음",
     tagColor: base.tagColor || "gray",

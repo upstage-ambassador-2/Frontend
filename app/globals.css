@@ -702,6 +702,65 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   color: var(--text-3);
   padding: 8px 8px 6px;
 }
+
+/* ─── Modal ─────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(43, 41, 38, 0.28);
+}
+.modal-panel {
+  width: min(640px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-faint);
+}
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.modal-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+.modal-close {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-faint);
+  background: var(--surface);
+}
+.person-dialog .form-grid textarea {
+  min-height: 74px;
+}
 .reply-context {
   background: var(--accent-softer);
   border: 1px solid var(--accent-soft);
@@ -1409,4 +1468,20 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 @keyframes mello-toast {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 720px) {
+  .modal-backdrop {
+    padding: 12px;
+    align-items: end;
+  }
+  .modal-panel {
+    max-height: calc(100vh - 24px);
+  }
+  .person-dialog .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .person-dialog .span-2 {
+    grid-column: auto;
+  }
 }
