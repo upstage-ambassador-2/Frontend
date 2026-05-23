@@ -575,32 +575,6 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 }
 @keyframes mello-spin { to { transform: rotate(360deg); } }
 
-.versions {
-  display: flex; gap: 2px;
-  background: var(--surface-2);
-  border-radius: var(--r-md);
-  padding: 2px;
-  flex-wrap: nowrap;
-}
-.ver-btn {
-  appearance: none;
-  border: 0; background: transparent;
-  font: 500 12px/1 var(--font);
-  color: var(--text-3);
-  padding: 5px 11px;
-  border-radius: 5px;
-  cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.ver-btn .ver-sub { opacity: 0.55; font-weight: 400; }
-.ver-btn.is-on {
-  background: var(--surface); color: var(--text);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-.ver-btn .ver-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.65; }
-
 .result-tools { margin-left: auto; display: flex; gap: 4px; }
 .icon-btn {
   width: 28px; height: 28px;
