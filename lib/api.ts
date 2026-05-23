@@ -220,9 +220,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
-  gmailMessages: () => apiJson<GmailMessage[]>("/gmail/messages?limit=30"),
-  gmailMessage: (id: string) =>
-    apiJson<GmailMessageDetail>(`/gmail/messages/${id}`),
   send: (payload: SendPayload) =>
     apiJson<SendResponse>("/gmail/send", {
       method: "POST",

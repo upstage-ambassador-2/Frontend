@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import {
   api,
   type GmailMessage,
   type MeResponse,
   type PersonaPayload,
-  type ReplyContext,
 } from "@/lib/api";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
@@ -273,43 +274,19 @@ export function PeopleScreen({
 }
 
 export function InboxScreen({
-  onReply,
-  onToast,
+  initialMessages,
+  initialError,
+  replyHrefForMessage,
 }: {
-  onReply: (context: ReplyContext) => void;
-  onToast: (message: string) => void;
+  initialMessages: GmailMessage[];
+  initialError: string | null;
+  replyHrefForMessage: (message: GmailMessage) => string;
 }) {
-  const [messages, setMessages] = useState<GmailMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
 
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setMessages(await api.gmailMessages());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "받은편지함을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  const open = async (message: GmailMessage) => {
-    setOpeningId(message.id);
-    try {
-      const detail = await api.gmailMessage(message.id);
-      onReply(detail.replyContext);
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : "메일 원문을 불러오지 못했습니다.");
-    } finally {
-      setOpeningId(null);
-    }
+  const load = () => {
+    startRefresh(() => router.refresh());
   };
 
   return (
@@ -318,24 +295,32 @@ export function InboxScreen({
         title="받은편지함"
         desc="최근 Gmail 메일을 고르면 작성 화면에서 답장 초안을 만들 수 있습니다."
         action={
-          <button type="button" className="btn-secondary" onClick={() => void load()}>
-            <IconRefresh size={13} /> 새로고침
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void load()}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <span className="result-spinner" aria-hidden />
+            ) : (
+              <IconRefresh size={13} />
+            )}
+            {refreshing ? "새로고침 중" : "새로고침"}
           </button>
         }
       />
 
       <div className="card inbox-card">
-        {loading && <div className="state-row">받은편지함을 불러오는 중입니다.</div>}
-        {error && <div className="state-row error-text">{error}</div>}
-        {!loading && !error && messages.length === 0 && (
+        {initialError && <div className="state-row error-text">{initialError}</div>}
+        {!initialError && initialMessages.length === 0 && (
           <div className="state-row">최근 받은 메일이 없습니다.</div>
         )}
-        {messages.map((message) => (
-          <button
+        {initialMessages.map((message) => (
+          <Link
             key={message.id}
-            type="button"
             className="inbox-row"
-            onClick={() => void open(message)}
+            href={replyHrefForMessage(message)}
           >
             <div className="inbox-from">{message.fromAddr}</div>
             <div className="inbox-main">
@@ -343,9 +328,9 @@ export function InboxScreen({
               <div className="inbox-snippet">{message.snippet}</div>
             </div>
             <div className="inbox-date">
-              {openingId === message.id ? "여는 중" : message.date}
+              {message.date}
             </div>
-          </button>
+          </Link>
         ))}
       </div>
     </div>

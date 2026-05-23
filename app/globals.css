@@ -152,6 +152,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   cursor: pointer;
   user-select: none;
   border: 0; background: transparent; text-align: left; width: 100%;
+  text-decoration: none;
 }
 .side-item:hover { background: var(--hover); color: var(--text); }
 .side-item.is-active {
@@ -179,6 +180,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   cursor: pointer;
   border: 0; background: transparent; text-align: left;
   font: inherit; color: var(--text-2);
+  text-decoration: none;
 }
 .side-person:hover { background: var(--hover); color: var(--text); }
 .side-person.is-active { background: var(--hover-strong); color: var(--text); }
@@ -1047,6 +1049,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   border-bottom: 1px solid var(--border-faint);
   background: transparent;
   color: inherit;
+  text-decoration: none;
   text-align: left;
   cursor: pointer;
 }

@@ -37,9 +37,24 @@ The app opens at `http://localhost:3000`.
 If port `3000` is busy:
 
 ```bash
-MELLO_WEB_URL=http://localhost:3001 npm run mock
-MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3001
+MELLO_WEB_URL=http://localhost:3004 npm run mock
+MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3004
 ```
+
+## App Routes and SSR
+
+The app uses feature-level Next.js routes:
+
+- `/login`
+- `/compose/{persona_id}` (`/compose` redirects to the first persona)
+- `/compose/{persona_id}/reply/{message_id}`
+- `/inbox`
+- `/people`
+- `/history`
+- `/format`
+- `/settings`
+
+Authenticated routes are wrapped by `app/(app)/layout.tsx`, which checks the HttpOnly cookie session and fetches initial app data server-side before rendering the shell. Inbox lists and reply message details are also fetched by server routes; client code is limited to user actions such as mutations, streaming draft generation, sending, and explicit refresh. Browser code still calls same-origin backend contract paths only.
 
 ## API Proxy
 
@@ -83,8 +98,8 @@ Authentication state is detected through `GET /me`. There is no frontend depende
 ## Demo Path
 
 1. Open the app while logged out.
-2. Click `Sign in with Google`.
-3. Confirm the Compose screen loads with the mock user.
+2. Click `Google 계정으로 계속하기`.
+3. Confirm `/compose/{persona_id}` loads with the mock user and selected persona.
 4. Generate a draft and send it with Gmail.
 5. Open `히스토리` and confirm the sent state.
 6. Open `받은편지함`, choose a message, and generate a reply draft.

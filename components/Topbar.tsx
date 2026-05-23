@@ -1,7 +1,7 @@
 "use client";
 
 import { IconSparkle, IconRefresh, IconSearch } from "./icons";
-import type { Route } from "./MelloApp";
+import type { Route } from "@/lib/routes";
 
 type Props = {
   route: Route;
