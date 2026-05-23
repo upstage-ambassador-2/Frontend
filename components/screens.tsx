@@ -602,9 +602,7 @@ export function InboxScreen({
                 {message.sender.email && (
                   <span className="inbox-from-email">{message.sender.email}</span>
                 )}
-                <span className={`tag ${match.matched ? "green" : "amber"}`}>
-                  {match.matched ? `${match.matched.name} 매칭` : "새 발신자"}
-                </span>
+                {!match.matched && <span className="tag amber">신규</span>}
               </div>
               <div className="inbox-main">
                 <div className="inbox-subject" title={message.subjectText}>
