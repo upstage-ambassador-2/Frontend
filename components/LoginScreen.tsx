@@ -141,7 +141,7 @@ export function LoginScreen({ onToast }: Props) {
     if (stage !== "idle") return;
     setStage("google-loading");
     try {
-      const url = await startGoogleLogin("/");
+      const url = await startGoogleLogin("/compose");
       window.location.href = url;
     } catch (error) {
       setStage("idle");

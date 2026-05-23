@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { Persona } from "@/lib/data";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
@@ -14,35 +15,33 @@ import {
   IconMore,
   IconMail,
 } from "./icons";
-import type { Route } from "./MelloApp";
+import { hrefForRoute, type Route } from "@/lib/routes";
 import type { User } from "@/lib/api";
 
 type NavItemProps = {
   icon: ReactNode;
   label: string;
   active: boolean;
-  onClick: () => void;
+  href: string;
   count?: ReactNode;
 };
 
-function NavItem({ icon, label, active, onClick, count }: NavItemProps) {
+function NavItem({ icon, label, active, href, count }: NavItemProps) {
   return (
-    <button
-      type="button"
+    <Link
+      href={href}
       className={"side-item" + (active ? " is-active" : "")}
-      onClick={onClick}
     >
       <span className="side-item-icon">{icon}</span>
       <span>{label}</span>
       {count != null && <span className="side-item-count">{count}</span>}
-    </button>
+    </Link>
   );
 }
 
 type Props = {
   personas: Persona[];
   route: Route;
-  setRoute: (r: Route) => void;
   selectedId: string;
   onPickPerson: (id: string) => void;
   historyCount: number;
@@ -52,7 +51,6 @@ type Props = {
 export function Sidebar({
   personas,
   route,
-  setRoute,
   selectedId,
   onPickPerson,
   historyCount,
@@ -77,41 +75,41 @@ export function Sidebar({
           icon={<IconCompose size={14} />}
           label="작성"
           active={route === "compose"}
-          onClick={() => setRoute("compose")}
+          href={hrefForRoute("compose")}
           count="⌘N"
         />
         <NavItem
           icon={<IconMail size={14} />}
           label="받은편지함"
           active={route === "inbox"}
-          onClick={() => setRoute("inbox")}
+          href={hrefForRoute("inbox")}
           count={30}
         />
         <NavItem
           icon={<IconPeople size={14} />}
           label="사람"
           active={route === "people"}
-          onClick={() => setRoute("people")}
+          href={hrefForRoute("people")}
           count={personas.length}
         />
         <NavItem
           icon={<IconHistory size={14} />}
           label="히스토리"
           active={route === "history"}
-          onClick={() => setRoute("history")}
+          href={hrefForRoute("history")}
           count={historyCount}
         />
         <NavItem
           icon={<IconFormat size={14} />}
           label="내 메일 형식"
           active={route === "format"}
-          onClick={() => setRoute("format")}
+          href={hrefForRoute("format")}
         />
         <NavItem
           icon={<IconSettings size={14} />}
           label="설정"
           active={route === "settings"}
-          onClick={() => setRoute("settings")}
+          href={hrefForRoute("settings")}
         />
       </nav>
 
@@ -132,8 +130,8 @@ export function Sidebar({
             <span className="side-person-meta">{p.mbti}</span>
           </button>
         ))}
-        <button
-          type="button"
+        <Link
+          href={hrefForRoute("people")}
           className="side-person"
           style={{ color: "var(--text-3)" }}
         >
@@ -150,7 +148,7 @@ export function Sidebar({
             <IconPlus size={11} />
           </span>
           <span className="side-person-name">사람 추가</span>
-        </button>
+        </Link>
       </div>
 
       <div className="side-foot">

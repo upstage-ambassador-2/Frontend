@@ -1,29 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { MELLO_SCENARIOS } from "@/lib/data";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import { api, type MeResponse, type ReplyContext } from "@/lib/api";
+import {
+  hrefForRoute,
+  labelForRoute,
+  routeFromPathname,
+  type Route,
+} from "@/lib/routes";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { ToastStack, type ToastItem } from "./Toast";
-import { ComposerScreen } from "./ComposerScreen";
-import {
-  FormatScreen,
-  HistoryScreen,
-  InboxScreen,
-  PeopleScreen,
-  SettingsScreen,
-} from "./screens";
-
-export type Route =
-  | "compose"
-  | "inbox"
-  | "people"
-  | "history"
-  | "format"
-  | "settings";
 
 const TONE_PRESETS: Record<string, number> = {
   lead: 35,
@@ -57,28 +55,64 @@ function presetLength(persona: Persona | undefined): number {
   return LENGTH_PRESETS[persona.id] ?? 55;
 }
 
+type MelloContextValue = {
+  me: MeResponse;
+  personas: Persona[];
+  setPersonas: (items: Persona[]) => void;
+  history: HistoryItem[];
+  format: MailFormat;
+  setFormat: (format: MailFormat) => void;
+  selectedId: string;
+  setSelectedId: (id: string) => void;
+  tone: number;
+  setTone: (value: number) => void;
+  length: number;
+  setLength: (value: number) => void;
+  brief: string;
+  setBrief: (value: string) => void;
+  replyContext: ReplyContext | null;
+  clearReplyContext: () => void;
+  openPersonaCompose: (id: string) => void;
+  showToast: (message: string) => void;
+  handleReply: (context: ReplyContext) => void;
+  handleLogout: () => Promise<void>;
+  replaceHistory: (item: HistoryItem) => void;
+};
+
+const MelloContext = createContext<MelloContextValue | null>(null);
+
+export function useMello() {
+  const value = useContext(MelloContext);
+  if (!value) {
+    throw new Error("useMello must be used within MelloShell");
+  }
+  return value;
+}
+
 type Props = {
+  children: ReactNode;
   initialMe: MeResponse;
   initialPersonas: Persona[];
   initialHistory: HistoryItem[];
   initialFormat: MailFormat;
 };
 
-export function MelloApp({
+export function MelloShell({
+  children,
   initialMe,
   initialPersonas,
   initialHistory,
   initialFormat,
 }: Props) {
+  const pathname = usePathname();
   const router = useRouter();
+  const route = routeFromPathname(pathname);
   const firstPersona = initialPersonas[0];
 
-  const [me] = useState<MeResponse>(initialMe);
-  const [route, setRoute] = useState<Route>("compose");
   const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
   const [format, setFormat] = useState<MailFormat>(initialFormat);
-  const [selectedId, setSelectedId] = useState<string>(firstPersona?.id ?? "");
+  const [selectedId, setSelectedIdState] = useState<string>(firstPersona?.id ?? "");
   const [tone, setTone] = useState<number>(presetTone(firstPersona));
   const [length, setLength] = useState<number>(presetLength(firstPersona));
   const [brief, setBrief] = useState<string>(
@@ -86,6 +120,11 @@ export function MelloApp({
   );
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const currentPerson = useMemo(
+    () => personas.find((p) => p.id === selectedId) ?? personas[0],
+    [personas, selectedId],
+  );
 
   const showToast = useCallback((msg: string) => {
     const id = Date.now() + Math.random();
@@ -96,22 +135,24 @@ export function MelloApp({
     );
   }, []);
 
-  const currentPerson = useMemo(
-    () => personas.find((p) => p.id === selectedId) ?? personas[0],
-    [personas, selectedId],
-  );
-
-  const onPickPerson = useCallback(
+  const setSelectedId = useCallback(
     (id: string) => {
       const persona = personas.find((p) => p.id === id);
-      setSelectedId(id);
+      setSelectedIdState(id);
       setTone(presetTone(persona));
       setLength(presetLength(persona));
       setReplyContext(null);
       setBrief(MELLO_SCENARIOS[id]?.brief || "");
-      setRoute("compose");
     },
     [personas],
+  );
+
+  const openPersonaCompose = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      router.push(hrefForRoute("compose"));
+    },
+    [router, setSelectedId],
   );
 
   useEffect(() => {
@@ -126,27 +167,17 @@ export function MelloApp({
   }, []);
 
   const crumb: [string, string | null] = useMemo(() => {
-    switch (route) {
-      case "compose":
-        return [
-          "작성",
-          replyContext
-            ? `${replyContext.fromAddr} 답장`
-            : currentPerson
-            ? `${currentPerson.name}에게`
-            : null,
-        ];
-      case "inbox":
-        return ["받은편지함", null];
-      case "people":
-        return ["사람", null];
-      case "history":
-        return ["히스토리", null];
-      case "format":
-        return ["내 메일 형식", null];
-      case "settings":
-        return ["설정", null];
+    if (route === "compose") {
+      return [
+        "작성",
+        replyContext
+          ? `${replyContext.fromAddr} 답장`
+          : currentPerson
+          ? `${currentPerson.name}에게`
+          : null,
+      ];
     }
+    return [labelForRoute(route), null];
   }, [currentPerson, replyContext, route]);
 
   const resetCompose = useCallback(() => {
@@ -162,22 +193,23 @@ export function MelloApp({
       const senderEmail = context.fromAddr.match(/<([^>]+)>/)?.[1];
       const matched = personas.find((persona) => persona.email === senderEmail);
       if (matched) {
-        setSelectedId(matched.id);
+        setSelectedIdState(matched.id);
         setTone(presetTone(matched));
         setLength(presetLength(matched));
       }
       setReplyContext(context);
       setBrief("");
-      setRoute("compose");
+      router.push(hrefForRoute("compose"));
       showToast("답장 컨텍스트가 작성 화면에 적용되었습니다");
     },
-    [personas, showToast],
+    [personas, router, showToast],
   );
 
   const handleLogout = useCallback(async () => {
     try {
       await api.logout();
     } finally {
+      router.replace("/login");
       router.refresh();
     }
   }, [router]);
@@ -190,77 +222,72 @@ export function MelloApp({
     });
   }, []);
 
-  return (
-    <div className="mello-shell">
-      <Sidebar
-        personas={personas}
-        route={route}
-        setRoute={setRoute}
-        selectedId={selectedId}
-        onPickPerson={onPickPerson}
-        historyCount={history.length}
-        user={me.user ?? null}
-      />
+  const value = useMemo<MelloContextValue>(
+    () => ({
+      me: initialMe,
+      personas,
+      setPersonas,
+      history,
+      format,
+      setFormat,
+      selectedId,
+      setSelectedId,
+      tone,
+      setTone,
+      length,
+      setLength,
+      brief,
+      setBrief,
+      replyContext,
+      clearReplyContext: () => setReplyContext(null),
+      openPersonaCompose,
+      showToast,
+      handleReply,
+      handleLogout,
+      replaceHistory,
+    }),
+    [
+      brief,
+      format,
+      handleLogout,
+      handleReply,
+      history,
+      initialMe,
+      length,
+      personas,
+      replyContext,
+      openPersonaCompose,
+      replaceHistory,
+      selectedId,
+      setSelectedId,
+      showToast,
+      tone,
+    ],
+  );
 
-      <main className="main">
-        <Topbar
+  return (
+    <MelloContext.Provider value={value}>
+      <div className="mello-shell">
+        <Sidebar
+          personas={personas}
           route={route}
-          crumb={crumb}
-          onResetCompose={resetCompose}
+          selectedId={selectedId}
+          onPickPerson={openPersonaCompose}
+          historyCount={history.length}
+          user={initialMe.user ?? null}
         />
 
-        <div className="main-scroll thin-scroll">
-          {route === "compose" && (
-            <ComposerScreen
-              personas={personas}
-              format={format}
-              onToast={showToast}
-              selectedId={selectedId}
-              setSelectedId={onPickPerson}
-              tone={tone}
-              setTone={setTone}
-              length={length}
-              setLength={setLength}
-              brief={brief}
-              setBrief={setBrief}
-              replyContext={replyContext}
-              onClearReplyContext={() => setReplyContext(null)}
-              onHistoryCreated={replaceHistory}
-              onHistoryUpdated={replaceHistory}
-            />
-          )}
-          {route === "inbox" && (
-            <InboxScreen onReply={handleReply} onToast={showToast} />
-          )}
-          {route === "people" && (
-            <PeopleScreen
-              personas={personas}
-              onOpen={onPickPerson}
-              onChanged={setPersonas}
-              onToast={showToast}
-            />
-          )}
-          {route === "history" && (
-            <HistoryScreen history={history} personas={personas} />
-          )}
-          {route === "format" && (
-            <FormatScreen
-              format={format}
-              onChanged={setFormat}
-              onToast={showToast}
-            />
-          )}
-          {route === "settings" && (
-            <SettingsScreen
-              me={me}
-              onLogout={handleLogout}
-              onToast={showToast}
-            />
-          )}
-        </div>
+        <main className="main">
+          <Topbar
+            route={route}
+            crumb={crumb}
+            onResetCompose={resetCompose}
+          />
 
-        <ToastStack items={toasts} />
-      </main>
-    </div>
+          <div className="main-scroll thin-scroll">{children}</div>
+          <ToastStack items={toasts} />
+        </main>
+      </div>
+    </MelloContext.Provider>
   );
 }
