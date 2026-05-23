@@ -10,7 +10,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mello — AI 메일·메시지 어시스턴트",
+  title: "Mello",
   description: "페르소나와 내 메일 형식에 맞춰 AI가 작성해주는 메일/메시지 어시스턴트",
 };
 
