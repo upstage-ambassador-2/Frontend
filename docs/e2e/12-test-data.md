@@ -39,7 +39,7 @@ SPEC 구현 후 persona backend shape는 최소 `id`, `user_id`, `name`, `relati
 
 ## Gmail Fixture
 
-테스트 Gmail 계정에는 최소 다음 메일을 준비한다.
+테스트 Gmail 계정에는 pagination 검증을 위해 최소 35개 이상의 inbox 메일을 준비한다. 첫 페이지 답장 골든패스에는 다음 fixture가 포함되어야 한다.
 
 | ID 별칭 | 조건 | 목적 |
 | --- | --- | --- |
@@ -47,6 +47,12 @@ SPEC 구현 후 persona backend shape는 최소 `id`, `user_id`, `name`, `relati
 | `gmail-reply-thread` | 기존 thread가 있는 메일 | In-Reply-To/References 유지 |
 | `gmail-long-subject` | 긴 subject/snippet | Inbox 레이아웃 회귀 |
 | `gmail-empty-body` | snippet은 있으나 body가 짧거나 비어 있음 | reply_context fallback |
+
+Pagination 검증용 fixture:
+
+- `limit=10`으로 첫 페이지와 두 번째 페이지가 나뉘도록 최소 11개 이상의 메일이 있어야 한다.
+- mock 서버는 `mock-page-{offset}` 형식의 opaque `pageToken`을 반환한다.
+- 실제 Gmail API 검증에서는 token 값을 해석하지 않고 응답의 `nextPageToken`을 그대로 다음 요청에 사용한다.
 
 ## History Seed
 

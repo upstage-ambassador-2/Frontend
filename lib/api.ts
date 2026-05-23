@@ -54,6 +54,29 @@ export type GmailMessage = {
   references: string | null;
 };
 
+export type PaginatedGmailMessages = {
+  messages: GmailMessage[];
+  nextPageToken: string | null;
+  resultSizeEstimate: number | null;
+  limit: number;
+  hasMore: boolean;
+};
+
+export const GMAIL_PAGE_SIZE_OPTIONS = [10, 30, 50] as const;
+export const DEFAULT_GMAIL_PAGE_SIZE = 30;
+
+export type GmailPageSize = (typeof GMAIL_PAGE_SIZE_OPTIONS)[number];
+
+export function normalizeGmailPageSize(
+  value: string | number | undefined,
+): GmailPageSize {
+  const numericValue =
+    typeof value === "number" ? value : Number.parseInt(value ?? "", 10);
+  return GMAIL_PAGE_SIZE_OPTIONS.includes(numericValue as GmailPageSize)
+    ? (numericValue as GmailPageSize)
+    : DEFAULT_GMAIL_PAGE_SIZE;
+}
+
 export type GmailMessageDetail = GmailMessage & {
   rawBody: string;
   replyContext: ReplyContext;

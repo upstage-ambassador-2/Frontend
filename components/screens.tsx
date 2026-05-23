@@ -6,11 +6,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import {
+  GMAIL_PAGE_SIZE_OPTIONS,
   api,
+  normalizeGmailPageSize,
   type GmailMessage,
   type MeResponse,
+  type PaginatedGmailMessages,
   type PersonaPayload,
 } from "@/lib/api";
+import { extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
@@ -141,6 +145,21 @@ function formatInboxDate(value: string | null) {
   return text;
 }
 
+function personaEmail(persona: Persona | undefined): string {
+  return persona?.email?.trim() || "";
+}
+
+function initialsFrom(value: string): string {
+  const compact = value.trim();
+  if (!compact) return "?";
+  const initials = compact
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2);
+  return initials.toUpperCase();
+}
+
 export function PeopleScreen({
   personas,
   onOpen,
@@ -154,6 +173,10 @@ export function PeopleScreen({
 }) {
   const [draft, setDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const connectedCount = useMemo(
+    () => personas.filter((persona) => !!personaEmail(persona)).length,
+    [personas],
+  );
 
   const save = async () => {
     if (!draft?.name.trim()) {
@@ -167,7 +190,7 @@ export function PeopleScreen({
         relation: draft.relation,
         tone: draft.tone,
         notes: draft.notes,
-        email: draft.email || undefined,
+        email: draft.email?.trim() || "",
       };
       const saved = draft.id
         ? await api.updatePersona(draft.id, payload)
@@ -211,7 +234,7 @@ export function PeopleScreen({
     <div className="page" style={{ maxWidth: 1040 }}>
       <PageTitle
         title="사람"
-        desc="자주 보내는 사람의 관계, 톤, 메모를 사용자별로 저장합니다."
+        desc="자주 보내는 사람의 관계, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
         action={
           <div className="row gap-2">
             <button type="button" className="btn-secondary" onClick={importContacts}>
@@ -228,6 +251,15 @@ export function PeopleScreen({
         }
       />
 
+      <div className="connection-summary" aria-label="사람 이메일 연결 요약">
+        <span>
+          <b>{connectedCount}</b>명 이메일 연결
+        </span>
+        <span>
+          <b>{personas.length - connectedCount}</b>명 이메일 없음
+        </span>
+      </div>
+
       {draft && (
         <div className="card form-card">
           <div className="form-grid">
@@ -240,7 +272,7 @@ export function PeopleScreen({
               />
             </label>
             <label>
-              <span>이메일</span>
+              <span>이메일 (선택)</span>
               <input
                 value={draft.email || ""}
                 onChange={(event) => setDraft({ ...draft, email: event.target.value })}
@@ -286,70 +318,81 @@ export function PeopleScreen({
       )}
 
       <div className="people-grid">
-        {personas.map((persona) => (
-          <div key={persona.id} className="person-card">
-            <button
-              type="button"
-              className="person-card-main"
-              onClick={() => onOpen(persona.id)}
-            >
-              <div className="person-card-h">
-                <PersonaAvatar persona={persona} size={36} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="person-card-name">{persona.name}</div>
-                  <div className="person-card-meta">{persona.relation}</div>
-                </div>
-                <span className="person-card-mbti">{persona.source || "manual"}</span>
-              </div>
-              <div className="person-card-tags">
-                <span className={`tag ${persona.tagColor || "gray"}`}>
-                  {persona.tone || "중립"}
-                </span>
-                {(persona.keywords || []).slice(0, 3).map((keyword, index) => (
-                  <span key={index} className={`tag ${persona.tagColor || "gray"}`}>
-                    {keyword}
+        {personas.map((persona) => {
+          const email = personaEmail(persona);
+          const hasEmail = !!email;
+          return (
+            <div key={persona.id} className="person-card">
+              <button
+                type="button"
+                className="person-card-main"
+                onClick={() => onOpen(persona.id)}
+              >
+                <div className="person-card-h">
+                  <PersonaAvatar persona={persona} size={36} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="person-card-name">{persona.name}</div>
+                    <div className="person-card-meta">{persona.relation}</div>
+                  </div>
+                  <span className="person-card-mbti">
+                    {persona.source || "manual"}
                   </span>
-                ))}
-              </div>
-              <div className="person-card-foot">
-                <IconHistory size={12} /> 마지막 작성 · {persona.lastUsed}
-                <span className="person-card-channel">
-                  {persona.channel?.includes("이메일") ? (
-                    <IconMail size={12} />
-                  ) : (
-                    <IconChat size={12} />
-                  )}
-                  {persona.email || persona.channel}
-                </span>
-              </div>
-            </button>
-            <div className="card-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() =>
-                  setDraft({
-                    id: persona.id,
-                    name: persona.name,
-                    relation: persona.relation,
-                    tone: persona.tone || "중립",
-                    notes: persona.notes || "",
-                    email: persona.email || "",
-                  })
-                }
-              >
-                수정
+                </div>
+                <div className="person-card-tags">
+                  <span className={`tag ${hasEmail ? "green" : "amber"}`}>
+                    {hasEmail ? "이메일 연결됨" : "이메일 없음"}
+                  </span>
+                  <span className={`tag ${persona.tagColor || "gray"}`}>
+                    {persona.tone || "중립"}
+                  </span>
+                  {(persona.keywords || []).slice(0, 2).map((keyword, index) => (
+                    <span key={index} className={`tag ${persona.tagColor || "gray"}`}>
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+                <div className="person-card-foot">
+                  <span className="person-card-last">
+                    <IconHistory size={12} /> 마지막 작성 · {persona.lastUsed}
+                  </span>
+                  <span
+                    className={
+                      "person-card-channel" + (hasEmail ? "" : " is-missing")
+                    }
+                  >
+                    {hasEmail ? <IconMail size={12} /> : <IconChat size={12} />}
+                    {hasEmail ? email : "Gmail 발송 전 이메일 필요"}
+                  </span>
+                </div>
               </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => void remove(persona.id)}
-              >
-                삭제
-              </button>
+              <div className="card-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() =>
+                    setDraft({
+                      id: persona.id,
+                      name: persona.name,
+                      relation: persona.relation,
+                      tone: persona.tone || "중립",
+                      notes: persona.notes || "",
+                      email: persona.email || "",
+                    })
+                  }
+                >
+                  수정
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void remove(persona.id)}
+                >
+                  삭제
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {personas.length === 0 && (
           <div className="empty-card">
             <IconPlus size={18} />
@@ -362,19 +405,29 @@ export function PeopleScreen({
 }
 
 export function InboxScreen({
-  initialMessages,
+  initialPage,
   initialError,
+  pageToken,
   replyHrefForMessage,
+  personaMatchForMessage,
 }: {
-  initialMessages: GmailMessage[];
+  initialPage: PaginatedGmailMessages;
   initialError: string | null;
+  pageToken: string | null;
   replyHrefForMessage: (message: GmailMessage) => string;
+  personaMatchForMessage: (message: GmailMessage) => {
+    matched: Persona | undefined;
+    senderEmail: string;
+  };
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const [navigating, startNavigation] = useTransition();
+  const [tokenHistory, setTokenHistory] = useState<Record<string, string>>({});
+  const currentLimit = normalizeGmailPageSize(initialPage.limit);
   const messages = useMemo(
     () =>
-      initialMessages.map((message) => {
+      initialPage.messages.map((message) => {
         const sender = parseInboxSender(message.fromAddr || message.from || "");
         return {
           ...message,
@@ -384,12 +437,77 @@ export function InboxScreen({
           dateText: formatInboxDate(message.date),
         };
       }),
-    [initialMessages],
+    [initialPage.messages],
   );
+  const busy = refreshing || navigating;
+  const previousToken = pageToken ? tokenHistory[pageToken] : undefined;
+  const canGoPrevious = Boolean(pageToken && previousToken !== undefined);
+  const canGoNext = Boolean(initialPage.hasMore && initialPage.nextPageToken);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(
+        `mello:inbox:token-history:${currentLimit}`,
+      );
+      setTokenHistory(
+        saved ? (JSON.parse(saved) as Record<string, string>) : {},
+      );
+    } catch {
+      setTokenHistory({});
+    }
+  }, [currentLimit]);
+
+  const inboxHref = (limit: number, token: string | null) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (token) params.set("pageToken", token);
+    return `/inbox?${params.toString()}`;
+  };
+
+  const rememberPreviousToken = (
+    nextToken: string,
+    currentToken: string | null,
+  ) => {
+    setTokenHistory((current) => {
+      const updated = { ...current, [nextToken]: currentToken ?? "" };
+      try {
+        window.sessionStorage.setItem(
+          `mello:inbox:token-history:${currentLimit}`,
+          JSON.stringify(updated),
+        );
+      } catch {
+        // Session history is only an enhancement for cursor-based previous nav.
+      }
+      return updated;
+    });
+  };
 
   const load = () => {
     startRefresh(() => router.refresh());
   };
+
+  const goNext = () => {
+    const nextToken = initialPage.nextPageToken;
+    if (!nextToken) return;
+    rememberPreviousToken(nextToken, pageToken);
+    startNavigation(() => router.push(inboxHref(currentLimit, nextToken)));
+  };
+
+  const goPrevious = () => {
+    if (!canGoPrevious) return;
+    startNavigation(() =>
+      router.push(inboxHref(currentLimit, previousToken || null)),
+    );
+  };
+
+  const changePageSize = (value: string) => {
+    const nextLimit = normalizeGmailPageSize(value);
+    startNavigation(() => router.push(inboxHref(nextLimit, null)));
+  };
+
+  const countText =
+    initialPage.resultSizeEstimate == null
+      ? `${messages.length}개 표시`
+      : `전체 약 ${initialPage.resultSizeEstimate}개 중 ${messages.length}개 표시`;
 
   return (
     <div className="page" style={{ maxWidth: 1040 }}>
@@ -397,54 +515,109 @@ export function InboxScreen({
         title="받은편지함"
         desc="최근 Gmail 메일을 고르면 작성 화면에서 답장 초안을 만들 수 있습니다."
         action={
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => void load()}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <span className="result-spinner" aria-hidden />
-            ) : (
-              <IconRefresh size={13} />
-            )}
-            {refreshing ? "새로고침 중" : "새로고침"}
-          </button>
+          <div className="inbox-actions">
+            <label className="inbox-size-control">
+              <span>페이지 크기</span>
+              <select
+                value={currentLimit}
+                onChange={(event) => changePageSize(event.target.value)}
+                disabled={busy}
+              >
+                {GMAIL_PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}개
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void load()}
+              disabled={busy}
+            >
+              {refreshing ? (
+                <span className="result-spinner" aria-hidden />
+              ) : (
+                <IconRefresh size={13} />
+              )}
+              {refreshing ? "새로고침 중" : "새로고침"}
+            </button>
+          </div>
         }
       />
 
+      <div className="inbox-meta">
+        <div className="small muted">
+          {initialError ? "받은편지함을 불러오지 못했습니다." : countText}
+          {pageToken && <span> · cursor 페이지</span>}
+        </div>
+        <div className="inbox-pager" aria-label="받은편지함 페이지 이동">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={goPrevious}
+            disabled={!canGoPrevious || busy}
+          >
+            이전
+          </button>
+          <span className="inbox-page-label">
+            {pageToken ? "이후 메일" : "첫 페이지"}
+          </span>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={goNext}
+            disabled={!canGoNext || busy}
+          >
+            {navigating ? (
+              <span className="result-spinner" aria-hidden />
+            ) : null}
+            다음
+          </button>
+        </div>
+      </div>
+
       <div className="card inbox-card">
         {initialError && <div className="state-row error-text">{initialError}</div>}
-        {!initialError && initialMessages.length === 0 && (
-          <div className="state-row">최근 받은 메일이 없습니다.</div>
+        {!initialError && messages.length === 0 && (
+          <div className="state-row">
+            {pageToken
+              ? "이 페이지에는 표시할 메일이 없습니다. 이전 페이지로 돌아가거나 페이지 크기를 변경해 주세요."
+              : "최근 받은 메일이 없습니다."}
+          </div>
         )}
-        {messages.map((message) => (
-          <Link
-            key={message.id}
-            className="inbox-row"
-            href={replyHrefForMessage(message)}
-            aria-label={`${message.sender.name}의 ${message.subjectText} 메일에 답장하기`}
-            title={`${message.sender.name} · ${message.subjectText}`}
-          >
-            <div className="inbox-from" title={message.fromAddr}>
-              <span className="inbox-from-name">{message.sender.name}</span>
-              {message.sender.email && (
-                <span className="inbox-from-email">{message.sender.email}</span>
-              )}
-            </div>
-            <div className="inbox-main">
-              <div className="inbox-subject" title={message.subjectText}>
-                {message.subjectText}
+        {messages.map((message) => {
+          const match = personaMatchForMessage(message);
+          return (
+            <Link
+              key={message.id}
+              className="inbox-row"
+              href={replyHrefForMessage(message)}
+              aria-label={`${message.sender.name}의 ${message.subjectText} 메일에 답장하기`}
+              title={`${message.sender.name} · ${message.subjectText}`}
+            >
+              <div className="inbox-from" title={message.fromAddr}>
+                <span className="inbox-from-name">{message.sender.name}</span>
+                {message.sender.email && (
+                  <span className="inbox-from-email">{message.sender.email}</span>
+                )}
+                {!match.matched && <span className="tag amber">신규</span>}
               </div>
-              <div className="inbox-snippet" title={message.snippetText}>
-                {message.snippetText}
+              <div className="inbox-main">
+                <div className="inbox-subject" title={message.subjectText}>
+                  {message.subjectText}
+                </div>
+                <div className="inbox-snippet" title={message.snippetText}>
+                  {message.snippetText}
+                </div>
               </div>
-            </div>
-            <div className="inbox-date" title={message.date || undefined}>
-              {message.dateText}
-            </div>
-          </Link>
-        ))}
+              <div className="inbox-date" title={message.date || undefined}>
+                {message.dateText}
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
@@ -458,21 +631,65 @@ export function HistoryScreen({
   personas: Persona[];
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [filterId, setFilterId] = useState("all");
   const pmap = useMemo(
     () => Object.fromEntries(personas.map((persona) => [persona.id, persona])),
     [personas],
   );
+  const visibleHistory = useMemo(() => {
+    if (filterId === "all") return history;
+    if (filterId === "reply") {
+      return history.filter((item) => !!item.replyContextId);
+    }
+    return history.filter((item) => item.personaId === filterId);
+  }, [filterId, history]);
+
+  const targetFor = (item: HistoryItem) => {
+    const persona = item.personaId ? pmap[item.personaId] : undefined;
+    const replyEmail = extractEmailAddress(item.replyFromAddr);
+    const targetEmail =
+      item.targetEmail ||
+      item.personaEmail ||
+      personaEmail(persona) ||
+      replyEmail ||
+      "";
+    const targetName =
+      item.targetName ||
+      item.personaName ||
+      persona?.name ||
+      item.replyFromAddr ||
+      "대상 미확인";
+    return {
+      persona,
+      name: targetName,
+      email: targetEmail,
+      source: item.replyContextId ? "답장" : targetEmail ? "메일" : "이메일 없음",
+    };
+  };
 
   return (
     <div className="page" style={{ maxWidth: 1040 }}>
       <PageTitle
         title="히스토리"
-        desc="생성된 초안과 Gmail 발송 상태를 사용자별로 확인합니다."
+        desc="생성된 초안과 Gmail 발송 상태를 사람과 이메일 기준으로 확인합니다."
         action={
           <div className="row gap-2">
-            <button type="button" className="btn-secondary">
-              필터 · 모두
-            </button>
+            <label className="history-filter">
+              <span>사람</span>
+              <select
+                value={filterId}
+                onChange={(event) => setFilterId(event.target.value)}
+                aria-label="사람별 히스토리 필터"
+              >
+                <option value="all">모두</option>
+                {personas.map((persona) => (
+                  <option key={persona.id} value={persona.id}>
+                    {persona.name}
+                  </option>
+                ))}
+                <option value="reply">답장 기록</option>
+              </select>
+            </label>
             <button type="button" className="btn-secondary">
               <IconSearch size={13} /> 검색
             </button>
@@ -488,8 +705,8 @@ export function HistoryScreen({
           <span>상태</span>
           <span>작성 시각</span>
         </div>
-        {history.map((item) => {
-          const persona = item.personaId ? pmap[item.personaId] : undefined;
+        {visibleHistory.map((item) => {
+          const target = targetFor(item);
           return (
             <div key={item.id}>
               <button
@@ -497,16 +714,19 @@ export function HistoryScreen({
                 className="history-row history-button"
                 onClick={() => setOpenId(openId === item.id ? null : item.id)}
               >
-                {persona ? (
-                  <PersonaAvatar persona={persona} size={22} />
+                {target.persona ? (
+                  <PersonaAvatar persona={target.persona} size={22} />
                 ) : (
-                  <span className="avatar">R</span>
+                  <span className="avatar">{initialsFrom(target.name)}</span>
                 )}
                 <div style={{ minWidth: 0 }}>
                   <div className="h-subj">{item.subj || item.subject}</div>
                   <div className="h-prev">{item.prev}</div>
                 </div>
-                <div className="h-meta">{persona?.name || "답장"}</div>
+                <div className="h-target">
+                  <span>{target.name}</span>
+                  <small>{target.email || target.source}</small>
+                </div>
                 <div>
                   <span className={`tag ${item.status === "sent" ? "green" : "gray"}`}>
                     {item.status || "draft"}
@@ -516,6 +736,10 @@ export function HistoryScreen({
               </button>
               {openId === item.id && (
                 <div className="history-detail">
+                  <div className="history-detail-meta">
+                    <span>대상: {target.name}</span>
+                    <span>{target.email || target.source}</span>
+                  </div>
                   <b>{item.subject || item.subj}</b>
                   <p>{item.body || item.prev}</p>
                 </div>
@@ -523,7 +747,7 @@ export function HistoryScreen({
             </div>
           );
         })}
-        {history.length === 0 && (
+        {visibleHistory.length === 0 && (
           <div className="state-row">아직 작성한 메일이 없습니다.</div>
         )}
       </div>

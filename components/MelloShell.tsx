@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { MELLO_SCENARIOS } from "@/lib/data";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import { api, type MeResponse, type ReplyContext } from "@/lib/api";
+import { normalizeEmailAddress } from "@/lib/email";
 import {
   hrefForRoute,
   labelForRoute,
@@ -212,8 +213,10 @@ export function MelloShell({
 
   const handleReply = useCallback(
     (context: ReplyContext) => {
-      const senderEmail = context.fromAddr.match(/<([^>]+)>/)?.[1];
-      const matched = personas.find((persona) => persona.email === senderEmail);
+      const senderEmail = normalizeEmailAddress(context.fromAddr);
+      const matched = personas.find(
+        (persona) => normalizeEmailAddress(persona.email) === senderEmail,
+      );
       const targetPersonaId = matched?.id ?? selectedId;
       if (matched) {
         applyPersona(matched.id, { clearReply: false });

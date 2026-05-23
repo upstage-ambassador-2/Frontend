@@ -12,7 +12,7 @@ Covered in mock mode:
 - Compose generation through SSE
 - Regenerate through the same generation endpoint
 - History creation and sent-state update
-- Server-rendered Gmail inbox listing, server-rendered message detail route, reply context injection
+- Server-rendered paginated Gmail inbox listing, server-rendered message detail route, reply context injection
 - Gmail send response with reply thread metadata
 - Format save and prompt-affecting generation output
 - Settings integration status and Slack/Notion planned no-op
@@ -113,6 +113,38 @@ Expected:
 - Each route's server HTML contains the route's core text.
 - `/inbox` server HTML contains inbox rows, and `/compose/{persona_id}/reply/{message_id}` server HTML contains the reply context.
 - No response contains `/mock-api`.
+
+Inbox pagination:
+
+```bash
+playwright-cli run-code 'async page => {
+  const result = [];
+  await page.goto("http://localhost:3004/inbox?limit=10", { waitUntil: "networkidle" });
+  result.push({
+    firstUrl: page.url(),
+    hasFirstRow: await page.getByText("Re: Mello 소개 자료 일정 문의").first().isVisible(),
+    hasNext: await page.getByRole("button", { name: "다음" }).isEnabled(),
+  });
+  await page.getByRole("button", { name: "다음" }).click();
+  await page.waitForURL(/pageToken=mock-page-10/);
+  result.push({
+    nextUrl: page.url(),
+    hasFixtureRow: await page.getByText("Mello pagination fixture 11").first().isVisible(),
+    hasPrevious: await page.getByRole("button", { name: "이전" }).isEnabled(),
+  });
+  await page.getByLabel("페이지 크기").selectOption("50");
+  await page.waitForURL(/limit=50/);
+  result.push({ resizedUrl: page.url() });
+  return result;
+}'
+```
+
+Expected:
+
+- `/inbox?limit=10` renders the first 10-message page with a next control.
+- Clicking `다음` keeps data server-rendered through `/inbox?limit=10&pageToken=mock-page-10`.
+- `이전` is enabled after in-session next navigation.
+- Changing the page size resets to the first page for the selected `limit`.
 
 Compose generate and send:
 

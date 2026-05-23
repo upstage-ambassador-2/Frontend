@@ -41,6 +41,12 @@ export type HistoryItem = {
   id: string;
   personaId: string | null;
   replyContextId?: string | null;
+  targetName?: string | null;
+  targetEmail?: string | null;
+  personaName?: string | null;
+  personaEmail?: string | null;
+  replyFromAddr?: string | null;
+  replySubject?: string | null;
   brief?: string;
   subject?: string;
   body?: string;

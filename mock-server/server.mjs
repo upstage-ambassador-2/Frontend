@@ -22,6 +22,13 @@ const shortDate = (minutes) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(Date.now() - minutes * 60_000));
+const emailFromAddress = (value = "") => {
+  const text = String(value).trim();
+  const match = text.match(/<([^>]+)>/);
+  const email = (match?.[1] || text).trim();
+  return email.includes("@") ? email : "";
+};
+const normalizedEmail = (value = "") => emailFromAddress(value).toLowerCase();
 
 const user = {
   id: "user-mock-oj",
@@ -118,6 +125,27 @@ let personas = [
     createdAt: minutesAgo(7400),
     updatedAt: minutesAgo(7400),
   },
+  {
+    id: "mom",
+    name: "엄마",
+    relation: "가족",
+    tone: "친근",
+    notes: "짧고 안심되는 표현을 선호합니다.",
+    email: "",
+    source: "manual",
+    role: "",
+    mbti: "",
+    avatar: "M",
+    color: "#eddccf",
+    keywords: ["안심시키기", "짧은 메시지"],
+    avoid: ["모호한 표현"],
+    prefer: "괜찮다는 한 줄을 먼저",
+    channel: "이메일 미연결",
+    lastUsed: "2일 전",
+    tagColor: "amber",
+    createdAt: minutesAgo(7200),
+    updatedAt: minutesAgo(7200),
+  },
 ];
 
 let mailFormat = {
@@ -136,6 +164,12 @@ let history = [
     id: "h-seed-1",
     personaId: "lead",
     replyContextId: null,
+    targetName: "김지훈 팀장",
+    targetEmail: "lead@mello.test",
+    personaName: "김지훈 팀장",
+    personaEmail: "lead@mello.test",
+    replyFromAddr: null,
+    replySubject: null,
     brief: "결제 모듈 QA 결과 공유",
     subject: "[공유] 결제 모듈 QA 결과",
     body: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정 후 공유드리겠습니다.",
@@ -152,7 +186,7 @@ let history = [
   },
 ];
 
-const gmailMessages = [
+const baseGmailMessages = [
   {
     id: "gmail-reply-basic",
     threadId: "thread-basic-1",
@@ -194,7 +228,50 @@ const gmailMessages = [
     rawBody:
       "Q3 분석에 사용할 Q2 퍼널 전환율 원본 시트를 공유드릴 수 있습니다.\n다만 모바일/웹 구분 기준을 먼저 확인하고 싶습니다. 기준 확정 후 원본 링크를 보내드리겠습니다.",
   },
+  {
+    id: "gmail-unmatched-sender",
+    threadId: "thread-new-9",
+    fromAddr: "윤하늘 <new.sender@mello.test>",
+    from: "윤하늘 <new.sender@mello.test>",
+    subject: "Mello 협업 문의",
+    snippet: "아직 People에 없는 발신자입니다. 답장 화면에서 기존 사람 매칭 여부를 확인할 수 있어야 합니다.",
+    date: shortDate(360),
+    messageId: "<gmail-unmatched-sender@mello.test>",
+    references: null,
+    rawBody:
+      "안녕하세요.\n\nMello 협업 가능 여부를 문의드립니다. 다음 주 중 간단히 이야기 나눌 수 있을까요?",
+  },
 ];
+
+const generatedGmailMessages = Array.from({ length: 42 }, (_, index) => {
+  const displayIndex = index + 4;
+  const senders = [
+    "김지훈 팀장 <lead@mello.test>",
+    "박서연 책임 <partner@mello.test>",
+    "이민호 사원 <colleague@mello.test>",
+    "정다은 <friend@mello.test>",
+  ];
+  const sender = senders[index % senders.length];
+  const padded = String(displayIndex).padStart(2, "0");
+
+  return {
+    id: `gmail-page-${padded}`,
+    threadId: `thread-page-${padded}`,
+    fromAddr: sender,
+    from: sender,
+    subject: `[후속] Mello pagination fixture ${padded}`,
+    snippet:
+      "페이지네이션 검증을 위한 mock Gmail 메시지입니다. 목록 이동과 pageToken 보존을 확인합니다.",
+    date: shortDate(300 + index * 35),
+    messageId: `<gmail-page-${padded}@mello.test>`,
+    references: index % 3 === 0 ? `<gmail-page-prev-${padded}@mello.test>` : null,
+    rawBody:
+      `안녕하세요, 오지송님.\n\n이 메일은 받은편지함 pagination 로컬 검증용 fixture ${padded}입니다.\n` +
+      "다음/이전 이동과 페이지 크기 변경 후에도 답장 컨텍스트가 유지되는지 확인해 주세요.",
+  };
+});
+
+const gmailMessages = [...baseGmailMessages, ...generatedGmailMessages];
 
 function sendJson(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
@@ -375,10 +452,27 @@ async function streamDraft(req, res, payload) {
   }
   const normalizedPayload = { ...payload, personaId, replyContextId };
   const draft = buildDraft(normalizedPayload);
+  const persona = personas.find((item) => item.id === personaId);
+  const replyContext = replyContexts.find((item) => item.id === replyContextId);
+  const replyEmail = emailFromAddress(replyContext?.fromAddr);
+  const replyMatchesPersona =
+    !!replyEmail &&
+    !!persona?.email &&
+    emailFromAddress(persona.email).toLowerCase() === replyEmail.toLowerCase();
   const item = {
     id: `h-${randomUUID()}`,
     personaId,
     replyContextId,
+    targetName: replyContext
+      ? replyMatchesPersona
+        ? persona.name
+        : replyContext.fromAddr
+      : persona?.name || null,
+    targetEmail: replyContext ? replyEmail : persona?.email || "",
+    personaName: persona?.name || null,
+    personaEmail: persona?.email || "",
+    replyFromAddr: replyContext?.fromAddr || null,
+    replySubject: replyContext?.subject || null,
     brief: payload.brief || "",
     subject: draft.subject,
     body: draft.body,
@@ -424,13 +518,22 @@ async function streamDraft(req, res, payload) {
 
 function applyPersonaFields(base, payload) {
   const now = nowIso();
+  const hasEmailField = Object.prototype.hasOwnProperty.call(payload, "email");
+  const email = hasEmailField
+    ? String(payload.email || "").trim()
+    : base.email || "";
+  const channel = hasEmailField
+    ? email
+      ? "이메일"
+      : "이메일 미연결"
+    : base.channel || (email ? "이메일" : "이메일 미연결");
   return {
     ...base,
     name: payload.name?.trim() || base.name,
     relation: payload.relation || "",
     tone: payload.tone || "중립",
     notes: payload.notes || "",
-    email: payload.email || base.email || `${base.id}@mello.test`,
+    email,
     source: base.source || "manual",
     role: base.role || "",
     mbti: base.mbti || "",
@@ -446,7 +549,7 @@ function applyPersonaFields(base, payload) {
     keywords: base.keywords?.length ? base.keywords : [payload.tone || "중립"],
     avoid: base.avoid || [],
     prefer: base.prefer || payload.notes || "",
-    channel: base.channel || "이메일",
+    channel,
     lastUsed: base.lastUsed || "없음",
     tagColor: base.tagColor || "gray",
     createdAt: base.createdAt || now,
@@ -549,6 +652,14 @@ async function handler(req, res) {
         sendJson(res, 422, { detail: "이름은 필수입니다." }, headers);
         return;
       }
+      const email = normalizedEmail(payload.email);
+      const existing = email
+        ? personas.find((item) => normalizedEmail(item.email) === email)
+        : null;
+      if (existing) {
+        sendJson(res, 200, existing, headers);
+        return;
+      }
       const persona = applyPersonaFields({ id: `p-${randomUUID()}` }, payload);
       personas = [persona, ...personas];
       sendJson(res, 201, persona, headers);
@@ -597,7 +708,12 @@ async function handler(req, res) {
       let imported = 0;
       let skipped = 0;
       for (const contact of contactPersonas) {
-        if (personas.some((item) => item.email === contact.email)) {
+        if (
+          personas.some(
+            (item) =>
+              normalizedEmail(item.email) === normalizedEmail(contact.email),
+          )
+        ) {
           skipped += 1;
           continue;
         }
@@ -649,11 +765,31 @@ async function handler(req, res) {
     }
 
     if (req.method === "GET" && path === "/gmail/messages") {
-      const limit = Number(url.searchParams.get("limit") || 30);
+      const requestedLimit = Number(url.searchParams.get("limit") || 30);
+      const limit = [10, 30, 50].includes(requestedLimit) ? requestedLimit : 30;
+      const pageToken = url.searchParams.get("pageToken");
+      const tokenOffset =
+        pageToken && pageToken.startsWith("mock-page-")
+          ? Number(pageToken.replace("mock-page-", ""))
+          : 0;
+      const start = Number.isFinite(tokenOffset)
+        ? Math.min(Math.max(tokenOffset, 0), gmailMessages.length)
+        : 0;
+      const end = start + limit;
+      const nextPageToken =
+        end < gmailMessages.length ? `mock-page-${end}` : null;
       sendJson(
         res,
         200,
-        gmailMessages.slice(0, limit).map(({ rawBody, ...message }) => message),
+        {
+          messages: gmailMessages
+            .slice(start, end)
+            .map(({ rawBody, ...message }) => message),
+          nextPageToken,
+          resultSizeEstimate: gmailMessages.length,
+          limit,
+          hasMore: Boolean(nextPageToken),
+        },
         headers,
       );
       return;
