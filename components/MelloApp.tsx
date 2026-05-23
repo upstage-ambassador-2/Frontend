@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MELLO_FORMAT, MELLO_SCENARIOS } from "@/lib/data";
+import { useRouter } from "next/navigation";
+import { MELLO_SCENARIOS } from "@/lib/data";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
-import { api, ApiError, type MeResponse, type ReplyContext } from "@/lib/api";
+import { api, type MeResponse, type ReplyContext } from "@/lib/api";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { ToastStack, type ToastItem } from "./Toast";
 import { ComposerScreen } from "./ComposerScreen";
-import { LoginScreen } from "./LoginScreen";
 import {
   FormatScreen,
   HistoryScreen,
@@ -57,17 +57,33 @@ function presetLength(persona: Persona | undefined): number {
   return LENGTH_PRESETS[persona.id] ?? 55;
 }
 
-export function MelloApp() {
-  const [auth, setAuth] = useState<"checking" | "in" | "out">("checking");
-  const [me, setMe] = useState<MeResponse | null>(null);
+type Props = {
+  initialMe: MeResponse;
+  initialPersonas: Persona[];
+  initialHistory: HistoryItem[];
+  initialFormat: MailFormat;
+};
+
+export function MelloApp({
+  initialMe,
+  initialPersonas,
+  initialHistory,
+  initialFormat,
+}: Props) {
+  const router = useRouter();
+  const firstPersona = initialPersonas[0];
+
+  const [me] = useState<MeResponse>(initialMe);
   const [route, setRoute] = useState<Route>("compose");
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [format, setFormat] = useState<MailFormat>(MELLO_FORMAT);
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [tone, setTone] = useState<number>(35);
-  const [length, setLength] = useState<number>(45);
-  const [brief, setBrief] = useState<string>("");
+  const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
+  const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
+  const [format, setFormat] = useState<MailFormat>(initialFormat);
+  const [selectedId, setSelectedId] = useState<string>(firstPersona?.id ?? "");
+  const [tone, setTone] = useState<number>(presetTone(firstPersona));
+  const [length, setLength] = useState<number>(presetLength(firstPersona));
+  const [brief, setBrief] = useState<string>(
+    MELLO_SCENARIOS[firstPersona?.id ?? ""]?.brief ?? "",
+  );
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
@@ -79,42 +95,6 @@ export function MelloApp() {
       1800,
     );
   }, []);
-
-  const loadApp = useCallback(async () => {
-    try {
-      const meResult = await api.me();
-      const [personasResult, historyResult, formatResult] = await Promise.all([
-        api.personas(),
-        api.history(),
-        api.format(),
-      ]);
-      setMe(meResult);
-      setPersonas(personasResult);
-      setHistory(historyResult);
-      setFormat(formatResult);
-      const first = personasResult[0];
-      setSelectedId((current) => current || first?.id || "");
-      setTone((current) => (current === 35 ? presetTone(first) : current));
-      setLength((current) => (current === 45 ? presetLength(first) : current));
-      setBrief((current) => current || MELLO_SCENARIOS[first?.id || ""]?.brief || "");
-      setAuth("in");
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        setAuth("out");
-        return;
-      }
-      setAuth("out");
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "앱 데이터를 불러오지 못했습니다.",
-      );
-    }
-  }, [showToast]);
-
-  useEffect(() => {
-    void loadApp();
-  }, [loadApp]);
 
   const currentPerson = useMemo(
     () => personas.find((p) => p.id === selectedId) ?? personas[0],
@@ -198,12 +178,9 @@ export function MelloApp() {
     try {
       await api.logout();
     } finally {
-      setAuth("out");
-      setMe(null);
-      setRoute("compose");
-      setReplyContext(null);
+      router.refresh();
     }
-  }, []);
+  }, [router]);
 
   const replaceHistory = useCallback((updated: HistoryItem) => {
     setHistory((items) => {
@@ -212,22 +189,6 @@ export function MelloApp() {
       return items.map((item) => (item.id === updated.id ? updated : item));
     });
   }, []);
-
-  if (auth === "checking") {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <div className="side-brand-logo">M</div>
-          <div className="auth-title">Mello를 준비 중입니다</div>
-          <div className="small muted">세션을 확인하고 있습니다.</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (auth === "out") {
-    return <LoginScreen onToast={showToast} />;
-  }
 
   return (
     <div className="mello-shell">
@@ -238,7 +199,7 @@ export function MelloApp() {
         selectedId={selectedId}
         onPickPerson={onPickPerson}
         historyCount={history.length}
-        user={me?.user ?? null}
+        user={me.user ?? null}
       />
 
       <main className="main">
