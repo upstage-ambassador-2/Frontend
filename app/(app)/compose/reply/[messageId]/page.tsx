@@ -7,22 +7,14 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function ReplyComposePage({
+export default async function ReplyBootstrapPage({
   params,
 }: {
-  params: { personaId: string; messageId: string };
+  params: { messageId: string };
 }) {
   const initial = await getServerInitial();
   if (initial.auth === "out") {
     redirect("/login");
-  }
-
-  const personaId = decodeURIComponent(params.personaId);
-  const hasPersona = initial.personas.some(
-    (persona) => persona.id === personaId,
-  );
-  if (!hasPersona && initial.personas.length > 0) {
-    notFound();
   }
 
   const message = await getServerGmailMessage(params.messageId);

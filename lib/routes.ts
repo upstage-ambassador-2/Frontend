@@ -42,6 +42,7 @@ export function labelForRoute(route: Route): string {
 export function personaIdFromPathname(pathname: string | null): string | null {
   if (!pathname?.startsWith("/compose/")) return null;
   const [, , personaId] = pathname.split("/");
+  if (personaId === "reply") return null;
   return personaId ? decodeURIComponent(personaId) : null;
 }
 
