@@ -487,12 +487,12 @@ export function PeopleScreen({
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page people-page">
       <PageTitle
         title="사람"
         desc="자주 보내는 사람의 관계, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
         action={
-          <div className="row gap-2">
+          <div className="row gap-2 people-actions">
             <button type="button" className="btn-secondary" onClick={importContacts}>
               <IconMail size={13} /> Contacts에서 가져오기
             </button>
@@ -710,7 +710,7 @@ export function InboxScreen({
       : `전체 약 ${initialPage.resultSizeEstimate}개 중 ${messages.length}개 표시`;
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page inbox-page" style={{ maxWidth: 1040 }}>
       <PageTitle
         title="받은편지함"
         desc="최근 Gmail 메일을 고르면 작성 화면에서 답장 초안을 만들 수 있습니다."
@@ -798,11 +798,13 @@ export function InboxScreen({
               title={`${message.sender.name} · ${message.subjectText}`}
             >
               <div className="inbox-from" title={message.fromAddr}>
-                <span className="inbox-from-name">{message.sender.name}</span>
+                <div className="inbox-sender-line">
+                  <span className="inbox-from-name">{message.sender.name}</span>
+                  {!match.matched && <span className="tag amber">신규</span>}
+                </div>
                 {message.sender.email && (
                   <span className="inbox-from-email">{message.sender.email}</span>
                 )}
-                {!match.matched && <span className="tag amber">신규</span>}
               </div>
               <div className="inbox-main">
                 <div className="inbox-subject" title={message.subjectText}>
@@ -868,12 +870,12 @@ export function HistoryScreen({
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page history-page">
       <PageTitle
         title="히스토리"
         desc="생성된 초안과 Gmail 발송 상태를 사람과 이메일 기준으로 확인합니다."
         action={
-          <div className="row gap-2">
+          <div className="history-actions">
             <label className="history-filter">
               <span>사람</span>
               <select
@@ -897,7 +899,7 @@ export function HistoryScreen({
         }
       />
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card history-card">
         <div className="history-row is-head">
           <span></span>
           <span>제목 / 미리보기</span>
@@ -907,41 +909,68 @@ export function HistoryScreen({
         </div>
         {visibleHistory.map((item) => {
           const target = targetFor(item);
+          const subject = item.subject || item.subj || "제목 없음";
+          const preview = item.prev || item.body || item.brief || "미리보기 없음";
+          const status = item.status || "draft";
+          const detailId = `history-detail-${item.id}`;
           return (
             <div key={item.id}>
               <button
                 type="button"
                 className="history-row history-button"
                 onClick={() => setOpenId(openId === item.id ? null : item.id)}
+                aria-expanded={openId === item.id}
+                aria-controls={detailId}
               >
-                {target.persona ? (
-                  <PersonaAvatar persona={target.persona} size={22} />
-                ) : (
-                  <span className="avatar">{initialsFrom(target.name)}</span>
-                )}
-                <div style={{ minWidth: 0 }}>
-                  <div className="h-subj">{item.subj || item.subject}</div>
-                  <div className="h-prev">{item.prev}</div>
+                <span className="history-avatar">
+                  {target.persona ? (
+                    <PersonaAvatar persona={target.persona} size={22} />
+                  ) : (
+                    <span className="avatar">{initialsFrom(target.name)}</span>
+                  )}
+                </span>
+                <div className="history-copy">
+                  <div className="h-subj" title={subject}>
+                    {subject}
+                  </div>
+                  <div className="h-prev" title={preview}>
+                    {preview}
+                  </div>
                 </div>
                 <div className="h-target">
                   <span>{target.name}</span>
                   <small>{target.email || target.source}</small>
                 </div>
-                <div>
-                  <span className={`tag ${item.status === "sent" ? "green" : "gray"}`}>
-                    {item.status || "draft"}
+                <div className="h-status">
+                  <span className={`tag ${status === "sent" ? "green" : "gray"}`}>
+                    {status}
                   </span>
                 </div>
                 <div className="h-meta">{item.when}</div>
               </button>
               {openId === item.id && (
-                <div className="history-detail">
+                <div
+                  id={detailId}
+                  className="history-detail"
+                  role="region"
+                  aria-label={`${subject} 상세`}
+                >
+                  <div className="history-detail-head">
+                    <div className="history-detail-title">{subject}</div>
+                    <button
+                      type="button"
+                      className="icon-btn history-detail-close"
+                      aria-label="히스토리 상세 닫기"
+                      onClick={() => setOpenId(null)}
+                    >
+                      <IconClose size={13} />
+                    </button>
+                  </div>
                   <div className="history-detail-meta">
                     <span>대상: {target.name}</span>
                     <span>{target.email || target.source}</span>
                   </div>
-                  <b>{item.subject || item.subj}</b>
-                  <p>{item.body || item.prev}</p>
+                  <p>{item.body || preview}</p>
                 </div>
               )}
             </div>
@@ -965,7 +994,7 @@ function FormatSlot({
   on?: boolean;
 }) {
   return (
-    <div className="row gap-3" style={{ padding: "8px 4px" }}>
+    <div className="row gap-3 format-slot">
       <div className="mini-icon">
         <IconFormat size={14} />
       </div>
@@ -996,6 +1025,11 @@ export function FormatScreen({
     setDraft(format);
   }, [format]);
 
+  const cancel = () => {
+    setDraft(format);
+    setEditing(false);
+  };
+
   const save = async () => {
     try {
       const saved = await api.updateFormat(draft);
@@ -1007,21 +1041,25 @@ export function FormatScreen({
     }
   };
 
+  const renderEditActions = (placement: "top" | "bottom") => (
+    <div className={`format-actions format-actions-${placement}`}>
+      <button type="button" className="btn-secondary" onClick={cancel}>
+        취소
+      </button>
+      <button type="button" className="btn-primary" onClick={save}>
+        저장
+      </button>
+    </div>
+  );
+
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
+    <div className="page format-page" style={{ maxWidth: 760 }}>
       <PageTitle
         title="내 메일 형식"
         desc="사용자별 인사말과 서명을 저장해 AI 생성 프롬프트에 반영합니다."
         action={
           editing ? (
-            <div className="row gap-2">
-              <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>
-                취소
-              </button>
-              <button type="button" className="btn-primary" onClick={save}>
-                저장
-              </button>
-            </div>
+            renderEditActions("top")
           ) : (
             <button type="button" className="btn-primary" onClick={() => setEditing(true)}>
               편집
@@ -1039,34 +1077,37 @@ export function FormatScreen({
         </div>
         <div className="card-b">
           {editing ? (
-            <div className="form-grid">
-              {[
-                ["greeting", "인사말"],
-                ["structure", "본문 구조"],
-                ["bulletStyle", "불릿 스타일"],
-                ["closing", "마무리 문장"],
-                ["language", "기본 언어"],
-              ].map(([key, label]) => (
-                <label key={key}>
-                  <span>{label}</span>
-                  <input
-                    value={String(draft[key as keyof MailFormat] || "")}
+            <>
+              <div className="form-grid format-form-grid">
+                {[
+                  ["greeting", "인사말"],
+                  ["structure", "본문 구조"],
+                  ["bulletStyle", "불릿 스타일"],
+                  ["closing", "마무리 문장"],
+                  ["language", "기본 언어"],
+                ].map(([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <input
+                      value={String(draft[key as keyof MailFormat] || "")}
+                      onChange={(event) =>
+                        setDraft({ ...draft, [key]: event.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+                <label className="span-2 format-signature">
+                  <span>서명</span>
+                  <textarea
+                    value={draft.signature}
                     onChange={(event) =>
-                      setDraft({ ...draft, [key]: event.target.value })
+                      setDraft({ ...draft, signature: event.target.value })
                     }
                   />
                 </label>
-              ))}
-              <label className="span-2">
-                <span>서명</span>
-                <textarea
-                  value={draft.signature}
-                  onChange={(event) =>
-                    setDraft({ ...draft, signature: event.target.value })
-                  }
-                />
-              </label>
-            </div>
+              </div>
+              {renderEditActions("bottom")}
+            </>
           ) : (
             <div className="format-grid">
               <div className="format-row">
@@ -1119,21 +1160,21 @@ function Row({
   k,
   v,
   action,
-  last,
+  sub,
 }: {
   k: string;
   v: ReactNode;
   action?: ReactNode;
-  last?: boolean;
+  sub?: ReactNode;
 }) {
   return (
-    <div
-      className="row settings-row"
-      style={{ borderBottom: last ? 0 : "1px solid var(--border-faint)" }}
-    >
+    <div className="settings-row">
       <div className="settings-key">{k}</div>
-      <div className="grow">{v}</div>
-      {action}
+      <div className="settings-value">
+        <div className="settings-value-main">{v}</div>
+        {sub && <div className="settings-value-sub">{sub}</div>}
+      </div>
+      {action && <div className="settings-row-action">{action}</div>}
     </div>
   );
 }
@@ -1150,10 +1191,12 @@ function Integration({
   onClick: () => void;
 }) {
   return (
-    <div className="row gap-3" style={{ padding: "8px 4px" }}>
-      <div className="integration-icon">{title.slice(0, 1)}</div>
-      <div className="grow">
-        <div style={{ fontSize: 13.5, fontWeight: 500 }}>{title}</div>
+    <div className="settings-integration">
+      <div className="integration-icon" aria-hidden="true">
+        {title.slice(0, 1)}
+      </div>
+      <div className="settings-integration-copy">
+        <div className="settings-integration-title">{title}</div>
         <div className="small muted">{desc}</div>
       </div>
       <span className={`tag ${on ? "green" : "gray"}`}>
@@ -1183,21 +1226,34 @@ export function SettingsScreen({
       onToast(error instanceof Error ? error.message : "통합 상태를 처리하지 못했습니다");
     }
   };
+  const userName = me?.user.name || "로그인 사용자";
+  const userEmail = me?.user.email || "mello@example.com";
 
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
+    <div className="page settings-page">
       <PageTitle title="설정" desc="계정과 통합을 관리합니다." />
 
-      <div className="card">
+      <div className="card settings-account-card">
         <div className="card-h">
           <div className="card-h-title">계정</div>
         </div>
         <div className="card-b">
-          <Row k="이메일" v={me?.user.email || "-"} />
-          <Row k="이름" v={me?.user.name || "-"} />
+          <div className="settings-account-summary">
+            <div className="settings-account-avatar">
+              {initialsFrom(userName || userEmail)}
+            </div>
+            <div className="settings-account-copy">
+              <div className="settings-account-name">{userName}</div>
+              <div className="settings-account-mail">{userEmail}</div>
+            </div>
+            <span className="tag amber">Free · 30회 / 월</span>
+          </div>
+          <Row k="이메일" v={userEmail} />
+          <Row k="이름" v={userName} />
           <Row
             k="요금제"
             v={<span className="tag amber">Free · 30회 / 월</span>}
+            sub="백엔드 quota enforcement 없이 정적 라벨로 표시됩니다."
           />
           <Row
             k="세션"
@@ -1207,12 +1263,11 @@ export function SettingsScreen({
                 로그아웃
               </button>
             }
-            last
           />
         </div>
       </div>
 
-      <div className="card">
+      <div className="card settings-integration-card">
         <div className="card-h">
           <div className="card-h-title">통합</div>
         </div>
@@ -1244,13 +1299,13 @@ export function SettingsScreen({
         </div>
       </div>
 
-      <div className="card">
+      <div className="card settings-notification-card">
         <div className="card-h">
           <div className="card-h-title">알림</div>
         </div>
         <div className="card-b">
           <Row k="새 페르소나 추천 알림" v={<span className="tag green">켜짐</span>} />
-          <Row k="월간 사용 리포트" v={<span className="tag gray">꺼짐</span>} last />
+          <Row k="월간 사용 리포트" v={<span className="tag gray">꺼짐</span>} />
         </div>
       </div>
     </div>

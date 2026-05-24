@@ -1,6 +1,6 @@
 export default function InboxLoading() {
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page inbox-page" style={{ maxWidth: 1040 }}>
       <div className="row between page-title">
         <div>
           <div className="page-title-text">받은편지함</div>
