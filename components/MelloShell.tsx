@@ -210,6 +210,12 @@ export function MelloShell({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const focusHistorySearch = useCallback(() => {
+    document
+      .querySelector<HTMLInputElement>('[aria-label="히스토리 검색"]')
+      ?.focus();
+  }, []);
+
   const closeMobileDrawer = useCallback(() => {
     setMobileDrawerOpen(false);
   }, []);
@@ -361,6 +367,7 @@ export function MelloShell({
             route={route}
             crumb={crumb}
             onOpenMobileMenu={() => setMobileDrawerOpen(true)}
+            onFocusHistorySearch={focusHistorySearch}
             mobileMenuOpen={mobileDrawerOpen}
           />
 
