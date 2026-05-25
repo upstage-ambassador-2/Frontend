@@ -7,6 +7,7 @@ type Props = {
   route: Route;
   crumb: [string, string | null];
   onOpenMobileMenu?: () => void;
+  onFocusHistorySearch?: () => void;
   mobileMenuOpen?: boolean;
 };
 
@@ -14,6 +15,7 @@ export function Topbar({
   route,
   crumb,
   onOpenMobileMenu,
+  onFocusHistorySearch,
   mobileMenuOpen = false,
 }: Props) {
   return (
@@ -57,7 +59,11 @@ export function Topbar({
         </>
       )}
       {route === "history" && (
-        <button type="button" className="topbar-btn">
+        <button
+          type="button"
+          className="topbar-btn"
+          onClick={onFocusHistorySearch}
+        >
           <IconSearch size={13} />
           <span className="topbar-btn-label">검색</span>
         </button>
