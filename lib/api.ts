@@ -109,7 +109,7 @@ export type PersonaPayload = {
   relation: string;
   tone: PersonaTone;
   notes: string;
-  email?: string;
+  email?: string | null;
   role?: string;
   keywords?: string[];
   avoid?: string[];
