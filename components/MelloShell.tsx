@@ -346,6 +346,7 @@ export function MelloShell({
         />
         <Sidebar
           personas={personas}
+          history={history}
           route={route}
           selectedId={selectedId}
           onPickPerson={openPersonaCompose}

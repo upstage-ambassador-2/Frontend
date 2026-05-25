@@ -191,6 +191,78 @@ textarea {
   padding: 3px 5px; border-radius: 3px;
   background: var(--surface-3);
 }
+.side-search-results {
+  margin: -4px 8px 8px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  max-height: 246px;
+  overflow-y: auto;
+}
+.side-search-group + .side-search-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-faint);
+}
+.side-search-label {
+  padding: 3px 4px 5px;
+  color: var(--text-3);
+  font: 600 10px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.side-search-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.side-search-result:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.side-search-result-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.side-search-result-copy span,
+.side-search-result-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-search-result-copy span {
+  font-size: 12.5px;
+}
+.side-search-result-copy small {
+  color: var(--text-4);
+  font-size: 11px;
+}
+.side-search-history-icon {
+  width: 20px;
+  height: 20px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+.side-search-empty {
+  padding: 10px 6px;
+  color: var(--text-3);
+  font-size: 12px;
+}
 
 .side-nav { padding: 2px 8px 6px; display: flex; flex-direction: column; gap: 1px; }
 .side-section {
@@ -1466,6 +1538,7 @@ textarea {
 
   .side-brand-badge,
   .side-search,
+  .side-search-results,
   .side-section,
   .side-people,
   .side-foot {
@@ -2656,6 +2729,7 @@ textarea {
   }
   .mello-shell.route-people .side-brand-badge,
   .mello-shell.route-people .side-search,
+  .mello-shell.route-people .side-search-results,
   .mello-shell.route-people .side-section,
   .mello-shell.route-people .side-people,
   .mello-shell.route-people .side-foot {
@@ -2698,6 +2772,7 @@ textarea {
   }
   .mello-shell.route-settings .side-brand,
   .mello-shell.route-settings .side-search,
+  .mello-shell.route-settings .side-search-results,
   .mello-shell.route-settings .side-section,
   .mello-shell.route-settings .side-people,
   .mello-shell.route-settings .side-foot {
@@ -2751,6 +2826,8 @@ textarea {
   .mello-shell.route-format .side-brand,
   .mello-shell.route-history .side-search,
   .mello-shell.route-format .side-search,
+  .mello-shell.route-history .side-search-results,
+  .mello-shell.route-format .side-search-results,
   .mello-shell.route-history .side-section,
   .mello-shell.route-format .side-section,
   .mello-shell.route-history .side-people,
