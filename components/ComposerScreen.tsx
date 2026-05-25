@@ -299,7 +299,8 @@ export function ComposerScreen({
 
   const canGenerate = !!brief.trim() || !!replyContext;
   const canSend =
-    !!draft?.body &&
+    !!draft?.subject.trim() &&
+    !!draft?.body.trim() &&
     !generating &&
     !sending &&
     (!!replyContext || !!persona?.email);
@@ -382,7 +383,7 @@ export function ComposerScreen({
   }, [currentBody, onToast]);
 
   const send = useCallback(async () => {
-    if (!draft?.body || sending) return;
+    if (!draft?.subject.trim() || !draft?.body.trim() || sending) return;
     if (!replyContext && !persona?.email) {
       onToast("받는 사람 이메일이 필요합니다.");
       return;
