@@ -965,6 +965,7 @@ export function HistoryScreen({
           const subject = item.subject || item.subj || "제목 없음";
           const preview = item.prev || item.body || item.brief || "미리보기 없음";
           const status = item.status || "draft";
+          const toneMeta = [item.tone, item.length].filter(Boolean).join(" · ");
           const detailId = `history-detail-${item.id}`;
           return (
             <div key={item.id}>
@@ -998,6 +999,7 @@ export function HistoryScreen({
                   <span className={`tag ${status === "sent" ? "green" : "gray"}`}>
                     {status}
                   </span>
+                  {toneMeta && <small>{toneMeta}</small>}
                 </div>
                 <div className="h-meta">{item.when}</div>
               </button>

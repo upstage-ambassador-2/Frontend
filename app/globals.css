@@ -2083,6 +2083,22 @@ textarea {
   color: var(--text-4);
   font-size: 11px;
 }
+.h-status {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
+.h-status small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-4);
+  font-size: 10.5px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .history-row .avatar { width: 22px; height: 22px; font-size: 10px; }
 .history-button {
   width: 100%;
@@ -2952,6 +2968,7 @@ textarea {
   .h-status {
     grid-area: status;
     justify-self: end;
+    align-items: flex-end;
   }
   .history-row .h-meta {
     grid-area: meta;
@@ -3418,6 +3435,7 @@ textarea {
   }
   .h-status {
     justify-self: start;
+    align-items: flex-start;
   }
   .person-card-h {
     align-items: flex-start;
