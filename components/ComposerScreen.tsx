@@ -283,6 +283,7 @@ export function ComposerScreen({
   const [formatExpanded, setFormatExpanded] = useState(false);
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const sendingRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -383,11 +384,14 @@ export function ComposerScreen({
   }, [currentBody, onToast]);
 
   const send = useCallback(async () => {
-    if (!draft?.subject.trim() || !draft?.body.trim() || sending) return;
+    if (!draft?.subject.trim() || !draft?.body.trim() || sendingRef.current) {
+      return;
+    }
     if (!replyContext && !persona?.email) {
       onToast("받는 사람 이메일이 필요합니다.");
       return;
     }
+    sendingRef.current = true;
     setSending(true);
     try {
       const result = await api.send({
@@ -407,9 +411,10 @@ export function ComposerScreen({
     } catch (error) {
       onToast(error instanceof Error ? error.message : "메일 발송에 실패했습니다.");
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext, sending]);
+  }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext]);
 
   return (
     <div className="page">
