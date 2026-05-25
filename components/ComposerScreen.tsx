@@ -12,6 +12,7 @@ import { emailsMatch, extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconCheck,
+  IconClose,
   IconCopy,
   IconRefresh,
   IconSend,
@@ -298,7 +299,12 @@ export function ComposerScreen({
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
+  const draftSaveTimerRef = useRef<number | null>(null);
+  const draftSaveSeqRef = useRef(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const [draftSaveState, setDraftSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   useEffect(() => {
     if (!taRef.current) return;
@@ -320,10 +326,89 @@ export function ComposerScreen({
     !generating &&
     !sending &&
     (!!replyContext || !!persona?.email);
+  const canEditDraft =
+    !!draft && !generating && draft.history?.status !== "sent";
+  const canResetDraft =
+    canEditDraft && !sending && (!!draft?.subject.trim() || !!draft?.body.trim());
   const currentBody = draft?.body || "";
+
+  const clearPendingDraftSave = useCallback(() => {
+    if (draftSaveTimerRef.current) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearPendingDraftSave, [clearPendingDraftSave]);
+
+  const applyDraftHistory = useCallback(
+    (history: HistoryItem) => {
+      onHistoryUpdated(history);
+      setDraft((current) =>
+        current?.history?.id === history.id
+          ? {
+              ...current,
+              subject: history.subject ?? current.subject,
+              body: history.body ?? current.body,
+              history,
+            }
+          : current,
+      );
+    },
+    [onHistoryUpdated],
+  );
+
+  const scheduleDraftSave = useCallback(
+    (historyId: string, subject: string, body: string) => {
+      clearPendingDraftSave();
+      const requestSeq = draftSaveSeqRef.current + 1;
+      draftSaveSeqRef.current = requestSeq;
+      setDraftSaveState("saving");
+      draftSaveTimerRef.current = window.setTimeout(() => {
+        draftSaveTimerRef.current = null;
+        void api
+          .updateHistoryDraft(historyId, { subject, body })
+          .then((history) => {
+            if (draftSaveSeqRef.current !== requestSeq) return;
+            applyDraftHistory(history);
+            setDraftSaveState("saved");
+          })
+          .catch((error: unknown) => {
+            if (draftSaveSeqRef.current !== requestSeq) return;
+            setDraftSaveState("error");
+            onToast(
+              error instanceof Error
+                ? error.message
+                : "수정한 초안을 저장하지 못했습니다.",
+            );
+          });
+      }, 500);
+    },
+    [applyDraftHistory, clearPendingDraftSave, onToast],
+  );
+
+  const editDraftBody = useCallback(
+    (body: string) => {
+      setDraft((current) => {
+        if (!current) return current;
+        const next = { ...current, body };
+        const historyId = current.history?.id;
+        if (historyId && current.history?.status !== "sent") {
+          scheduleDraftSave(historyId, next.subject, next.body);
+        } else {
+          setDraftSaveState("idle");
+        }
+        return next;
+      });
+    },
+    [scheduleDraftSave],
+  );
 
   const runGenerate = useCallback(async () => {
     if (!canRequestGenerate) return;
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    setDraftSaveState("idle");
     const previousDraft = draft;
     let receivedDelta = false;
     abortRef.current?.abort();
@@ -376,6 +461,7 @@ export function ComposerScreen({
   }, [
     brief,
     canRequestGenerate,
+    clearPendingDraftSave,
     draft,
     lengthOption.value,
     onHistoryCreated,
@@ -436,6 +522,36 @@ export function ComposerScreen({
       setSending(false);
     }
   }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext]);
+
+  const resetDraft = useCallback(async () => {
+    if (!draft || !canResetDraft) return;
+    if (!window.confirm("작성된 초안을 비울까요?")) return;
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    const historyId = draft.history?.id;
+    if (!historyId) {
+      setDraft({ ...draft, subject: "", body: "" });
+      setDraftSaveState("idle");
+      onToast("초안을 비웠습니다");
+      return;
+    }
+    setDraftSaveState("saving");
+    try {
+      const history = await api.resetHistoryDraft(historyId);
+      applyDraftHistory(history);
+      setDraftSaveState("saved");
+      onToast("초안을 비웠습니다");
+    } catch (error) {
+      setDraftSaveState("error");
+      onToast(error instanceof Error ? error.message : "초안을 비우지 못했습니다.");
+    }
+  }, [
+    applyDraftHistory,
+    canResetDraft,
+    clearPendingDraftSave,
+    draft,
+    onToast,
+  ]);
 
   return (
     <div className="page">
@@ -576,6 +692,15 @@ export function ComposerScreen({
               >
                 <IconCopy size={15} />
               </button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => void resetDraft()}
+                aria-label="초안 비우기"
+                disabled={!canResetDraft}
+              >
+                <IconClose size={15} />
+              </button>
             </div>
           </div>
 
@@ -586,16 +711,53 @@ export function ComposerScreen({
             </div>
           )}
 
-          <div className="result-body thin-scroll" data-testid="result-body">
-            {currentBody}
-            {generating && <span className="cursor" aria-hidden />}
-          </div>
+          {generating ? (
+            <div className="result-body thin-scroll" data-testid="result-body">
+              {currentBody}
+              <span className="cursor" aria-hidden />
+            </div>
+          ) : (
+            <textarea
+              className="result-body thin-scroll"
+              data-testid="result-body"
+              aria-label="작성 결과 본문 편집"
+              value={currentBody}
+              onChange={(event) => editDraftBody(event.target.value)}
+              readOnly={!canEditDraft}
+              style={{
+                width: "100%",
+                border: 0,
+                background: "transparent",
+                outline: "none",
+                resize: "vertical",
+                display: "block",
+                fontFamily: "inherit",
+              }}
+            />
+          )}
 
           <div className="result-analysis">
             <span className="analysis-label">반영</span>
             <span className="tag amber">{toneLabel}</span>
             <span className="tag green">{lengthLabel}</span>
             {replyContext && <span className="tag blue">답장 컨텍스트</span>}
+            {draft?.history?.id && draft.history.status !== "sent" && (
+              <span
+                className={`tag ${
+                  draftSaveState === "error"
+                    ? "amber"
+                    : draftSaveState === "saving"
+                      ? "gray"
+                      : "green"
+                }`}
+              >
+                {draftSaveState === "saving"
+                  ? "저장 중"
+                  : draftSaveState === "error"
+                    ? "저장 실패"
+                    : "수동 편집 가능"}
+              </span>
+            )}
             {draft?.history?.status && (
               <span className={`tag ${draft.history.status === "sent" ? "green" : "gray"}`}>
                 {draft.history.status}
@@ -613,6 +775,14 @@ export function ComposerScreen({
               <span style={{ color: "var(--text-3)" }}>· Gmail</span>
             </span>
             <div className="result-spacer" />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void resetDraft()}
+              disabled={!canResetDraft}
+            >
+              <IconClose size={14} /> 비우기
+            </button>
             <button
               type="button"
               className="btn-secondary"

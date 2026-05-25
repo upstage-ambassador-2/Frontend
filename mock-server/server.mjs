@@ -904,6 +904,55 @@ async function handler(req, res) {
       return;
     }
 
+    const historyDraftMatch = path.match(/^\/history\/([^/]+)\/draft$/);
+    if (historyDraftMatch && req.method === "PATCH") {
+      const item = history.find((entry) => entry.id === historyDraftMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      if (item.status === "sent") {
+        sendJson(
+          res,
+          409,
+          { detail: "발송 완료된 히스토리는 수정할 수 없습니다." },
+          headers,
+        );
+        return;
+      }
+      const payload = await readBody(req);
+      if (payload.subject === undefined && payload.body === undefined) {
+        sendJson(res, 422, { detail: "수정할 초안 내용이 필요합니다." }, headers);
+        return;
+      }
+      if (payload.subject !== undefined) item.subject = String(payload.subject);
+      if (payload.body !== undefined) item.body = String(payload.body);
+      sendJson(res, 200, historyOut(item), headers);
+      return;
+    }
+
+    const historyDraftResetMatch = path.match(/^\/history\/([^/]+)\/draft\/reset$/);
+    if (historyDraftResetMatch && req.method === "POST") {
+      const item = history.find((entry) => entry.id === historyDraftResetMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      if (item.status === "sent") {
+        sendJson(
+          res,
+          409,
+          { detail: "발송 완료된 히스토리는 수정할 수 없습니다." },
+          headers,
+        );
+        return;
+      }
+      item.subject = "";
+      item.body = "";
+      sendJson(res, 200, historyOut(item), headers);
+      return;
+    }
+
     const historyMatch = path.match(/^\/history\/([^/]+)$/);
     if (historyMatch && req.method === "GET") {
       const item = history.find((entry) => entry.id === historyMatch[1]);
@@ -1016,6 +1065,8 @@ async function handler(req, res) {
       }
       const sentId = `sent-${randomUUID()}`;
       if (item) {
+        item.subject = payload.subject;
+        item.body = payload.body;
         item.status = "sent";
         item.sentAt = nowIso();
         item.gmailMessageId = sentId;
