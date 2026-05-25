@@ -8,6 +8,7 @@ import {
 } from "./data";
 
 const GET_DEDUPE_TTL_MS = 750;
+export const SESSION_EXPIRED_EVENT = "mello:session-expired";
 const getJsonRequests = new Map<
   string,
   { expiresAt: number; promise: Promise<unknown> }
@@ -172,6 +173,13 @@ async function parseError(response: Response): Promise<ApiError> {
   }
 }
 
+function emitSessionExpired(message: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }),
+  );
+}
+
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
@@ -190,7 +198,9 @@ export async function apiFetch(
     credentials: "include",
   });
   if (!response.ok) {
-    throw await parseError(response);
+    const error = await parseError(response);
+    if (error.status === 401) emitSessionExpired(error.message);
+    throw error;
   }
   return response;
 }
