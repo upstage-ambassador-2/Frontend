@@ -1709,6 +1709,39 @@ textarea {
   }
 }
 
+@media (max-width: 640px) {
+  .side-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 4px 8px 8px;
+    overflow-x: visible;
+  }
+
+  .side-item {
+    min-height: var(--touch-target-min);
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 9px 10px;
+    font-size: var(--t-md);
+    text-align: left;
+  }
+
+  .side-item-icon {
+    flex: 0 0 16px;
+  }
+
+  .side-item > span:not(.side-item-icon):not(.side-item-count) {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+}
+
 /* ─── People list ───────────────────────────────────────── */
 .connection-summary {
   display: inline-flex;
