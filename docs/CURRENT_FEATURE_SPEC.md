@@ -134,8 +134,8 @@ Solar 기반 SSE 메일 초안 생성
 - 완료 시 `done` event로 `subject`, `body`, `history`를 반환한다.
 - 생성 완료 후 history는 `draft` 상태로 저장된다.
 - `다시 생성`은 같은 입력으로 생성 API를 재호출한다.
-- 생성 시작 시 현재 draft는 비워진다.
-- 생성 실패 시 에러 toast를 표시하고 history는 생성하지 않는다.
+- 새 stream의 첫 `delta`가 오면 이전 표시 결과를 새 결과로 교체한다.
+- 생성 실패 시 에러 toast를 표시하고, 이전 draft가 있으면 보존하며, 실패한 요청의 history는 생성하지 않는다.
 
 ### 기능 효과
 사용자는 초안 생성 과정을 실시간으로 확인하고 반복 생성할 수 있다.
@@ -261,5 +261,4 @@ Frontend routes, mock data, manual QA
 - Slack/Notion 실제 연동
 - 작성 세션/Message 테이블 기반 split workspace/chat editor 대규모 개편
 - mailto fallback 발송
-- 생성 실패 시 이전 draft 롤백
 - 생성 결과 금지어/서명 무결성 검증 API 고도화
