@@ -9,6 +9,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   invalid_state: "로그인 요청이 만료되었거나 올바르지 않습니다. 다시 시도해주세요.",
   missing_code: "Google 로그인 응답이 올바르지 않습니다. 다시 시도해주세요.",
   oauth_failed: "Google 로그인에 실패했습니다. 다시 시도해주세요.",
+  session_expired: "세션이 만료되었습니다. 다시 로그인해주세요.",
 };
 
 export function LoginPage({ authError }: { authError?: string }) {

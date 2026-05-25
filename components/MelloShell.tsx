@@ -6,13 +6,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MELLO_SCENARIOS, normalizePersonaTone } from "@/lib/data";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
-import { api, type MeResponse, type ReplyContext } from "@/lib/api";
+import {
+  SESSION_EXPIRED_EVENT,
+  api,
+  type MeResponse,
+  type ReplyContext,
+} from "@/lib/api";
 import { normalizeEmailAddress } from "@/lib/email";
 import {
   hrefForRoute,
@@ -139,6 +145,7 @@ export function MelloShell({
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const sessionExpiredRedirectRef = useRef(false);
 
   const currentPerson = useMemo(
     () => personas.find((p) => p.id === selectedId),
@@ -153,6 +160,20 @@ export function MelloShell({
       1800,
     );
   }, []);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      if (sessionExpiredRedirectRef.current) return;
+      sessionExpiredRedirectRef.current = true;
+      router.replace("/login?auth_error=session_expired");
+      router.refresh();
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    };
+  }, [router]);
 
   const applyPersona = useCallback(
     (id: string, { clearReply }: { clearReply: boolean }) => {
