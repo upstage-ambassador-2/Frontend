@@ -89,7 +89,9 @@ Google Contacts 권한을 사용해 연락처를 persona 후보로 가져온다.
 - People 화면에서 `Contacts에서 가져오기` 버튼을 누른다.
 - 프론트엔드는 `POST /personas/import-contacts`를 호출한다.
 - 백엔드는 Google People API에서 연락처를 가져온다.
-- 기존 persona 이메일과 중복되지 않는 항목만 생성한다.
+- 기존 persona와 이메일이 같거나 공백 정규화 후 이름이 같은 항목은 `skipped`로 처리한다.
+- 같은 import batch 안에서 먼저 생성된 이메일/이름과 중복되는 항목도 추가하지 않는다.
+- 이름 또는 이메일이 비어 있는 연락처는 `skipped`로 처리한다.
 - 응답은 `imported`, `skipped`, 최신 `personas` 목록을 포함한다.
 
 ### 기능 효과
@@ -241,6 +243,9 @@ Compose, Gmail send, Persona, ReplyContext
 ### 기능 상세 동작
 - `mock-server/server.mjs`가 백엔드 계약 경로를 흉내낸다.
 - `MELLO_API_URL`을 mock server로 지정하면 Next.js가 same-origin API contract를 mock으로 rewrite한다.
+- mock Contacts import는 이메일/정규화 이름 중복 skip 계약을 재현한다.
+- mock Gmail 목록/상세와 reply context는 `senderEmail`, `senderName`, `personaId`, `persona` 메타데이터를 포함한다.
+- mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
 
 ### 기능 효과
