@@ -2293,22 +2293,31 @@ textarea {
 @media (max-width: 480px) {
   .inbox-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
   }
   .inbox-size-control {
     height: auto;
     flex-direction: column;
     align-items: flex-start;
   }
+  .inbox-size-control span {
+    line-height: 1;
+  }
   .inbox-page .btn-secondary {
-    width: 100%;
+    width: auto;
+    min-width: var(--touch-target-min);
     justify-content: center;
   }
   .inbox-pager {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(68px, 1fr) minmax(0, auto) minmax(68px, 1fr);
+    align-items: center;
   }
   .inbox-page-label {
-    order: -1;
+    order: 0;
+    font-size: 11.5px;
+    line-height: 1.25;
+    white-space: normal;
   }
   .inbox-row {
     grid-template-columns: minmax(0, 1fr);
