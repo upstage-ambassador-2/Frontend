@@ -49,13 +49,29 @@ function cookieHeader(): string {
     .join("; ");
 }
 
+function errorMessageFromPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const body = payload as { detail?: unknown; message?: unknown };
+  if (typeof body.detail === "string" && body.detail.trim()) return body.detail;
+  if (typeof body.message === "string" && body.message.trim()) {
+    return body.message;
+  }
+  return null;
+}
+
 async function fetchJson<T>(path: string, cookieHeader: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: cookieHeader ? { cookie: cookieHeader } : undefined,
     cache: "no-store",
   });
   if (!response.ok) {
-    const error = new Error(`Request failed (${response.status}) ${path}`);
+    let message = `Request failed (${response.status}) ${path}`;
+    try {
+      message = errorMessageFromPayload(await response.json()) || message;
+    } catch {
+      // Keep the status/path fallback when the response body is not JSON.
+    }
+    const error = new Error(message);
     (error as Error & { status?: number }).status = response.status;
     throw error;
   }
