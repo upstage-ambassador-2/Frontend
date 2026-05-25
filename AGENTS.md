@@ -1,55 +1,47 @@
-# AGENTS.md
+# CLAUDE.md
 
-Guidance for coding agents working in this frontend repository.
+Project notes for Claude when working in this repository.
 
-## Repository
+## Shared Instructions
 
-- GitHub: https://github.com/upstage-ambassador-2/Frontend
+- Read `AGENTS.md` first for the frontend repository rules.
+- Repository: https://github.com/upstage-ambassador-2/Frontend
 - Follow shared PR and issue conventions from https://github.com/upstage-ambassador-2/.github/blob/main/CONTRIBUTING.md.
-- Use the organization PR and issue templates from `upstage-ambassador-2/.github` unless this repository defines a local override.
 
-## Scope
+## Role
 
-- This is the Mello frontend repository.
-- Keep backend edits out of this repository. The backend lives separately at `../backend` and is only used here as the API contract reference.
-- Implement local backend behavior in `mock-server/server.mjs` when frontend E2E needs deterministic data.
+This repo is the Next.js frontend for Mello. It includes a local mock API server for E2E testing, but it is not the real backend.
 
-## API Rules
+## Key Constraints
 
-- Browser code must call the same-origin backend contract paths only, such as `/me`, `/auth/google/start`, `/personas`, and `/ai/generate`.
-- `next.config.mjs` rewrites those API paths to `MELLO_API_URL`. In tests, set `MELLO_API_URL` to the local mock server; in deployment, set it to the real FastAPI service.
-- Do not add direct browser calls to Google, Gmail, Contacts, Solar, or the FastAPI host.
-- Keep `lib/api.ts` and `mock-server/server.mjs` aligned with the FastAPI routes in `../backend/app/routers` and schemas in `../backend/app/schemas.py`.
-- Auth state is determined by `GET /me`. Do not reintroduce `/auth/session` as a frontend dependency.
+- Do not edit the backend repository from frontend tasks.
+- Match the API contract in `../backend/app/routers` and `../backend/app/schemas.py`.
+- Route browser requests through same-origin backend contract paths (`/me`, `/auth/*`, `/personas`, `/ai/*`, `/gmail/*`); Next rewrites them to `MELLO_API_URL`.
+- Do not call Google, Gmail, Contacts, Solar, or the real API host directly from browser code.
+- Use `/me` for auth/session detection.
+- Fetch route entry data in server components/server-only helpers. Do not add client-side initial loading for inbox, history, personas, or format data.
 
-## Development
-
-- Keep environment-specific auth behavior behind environment variables. The dev deployment uses `DEV_BASIC_AUTH_ENABLED=true`; do not fork auth code between `dev` and `main`.
-- Use feature-level App Router pages for user-facing functionality: `/compose/{persona_id}`, `/inbox`, `/people`, `/history`, `/format`, and `/settings`.
-- Do not model the selected compose recipient as a client-only screen condition. The selected persona must be represented in the URL.
-- Keep authenticated app routes behind `app/(app)/layout.tsx` so session checks and initial data fetches happen server-side.
-- Route entry data must be fetched in server components or server-only helpers. Do not use client `useEffect` for initial page data such as inbox messages, history, personas, or format.
-- For slow server route transitions, add `loading.tsx` with a small spinner instead of moving the initial fetch back to the client.
-- Prefer the existing React state and plain CSS patterns.
-- Keep dependencies minimal unless there is a clear reason to add one.
-- Use `Promise.all` for independent server-side app data loads after authentication.
-- For manual edits, keep changes scoped and avoid unrelated refactors.
-
-## Validation
-
-Run these before publishing meaningful changes:
+## Common Commands
 
 ```bash
+npm run mock
+npm run dev
 node --check mock-server/server.mjs
 npm run typecheck
 npm run build
 ```
 
-Use `playwright-cli` for mock-server E2E flows. The runbook is in `docs/MOCK-E2E.md`.
+For port conflicts:
 
-## Git Hygiene
+```bash
+MELLO_WEB_URL=http://localhost:3001 npm run mock
+MELLO_API_URL=http://localhost:4010 ./node_modules/.bin/next dev -p 3001
+```
 
-- Branch flow is `feature/* -> dev -> main`. Keep feature branches focused and merge to `dev` before promoting to `main`.
-- `.agents/` and `.claude/` are intentionally committed.
-- Do not commit `node_modules/`, `.next/`, `.playwright-cli/`, env files, or TypeScript build info.
-- If comparing with the backend repository, read its files but do not modify them unless explicitly requested.
+## E2E
+
+Use `playwright-cli` against the running Next app and mock server. The expected flow is documented in `docs/MOCK-E2E.md`.
+
+## Tracked Agent Files
+
+`.agents/` and `.claude/` are intentionally tracked. Do not add them to `.gitignore`.
