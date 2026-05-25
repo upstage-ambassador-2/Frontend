@@ -2077,6 +2077,21 @@ textarea {
   outline: 0;
   max-width: 140px;
 }
+.history-search {
+  min-width: 230px;
+}
+.history-filter input {
+  min-width: 0;
+  width: 180px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: 500 12.5px/1 var(--font);
+  outline: 0;
+}
+.history-filter input::placeholder {
+  color: var(--text-4);
+}
 
 /* ─── Inbox ──────────────────────────────────────────────── */
 .inbox-actions {
@@ -2807,6 +2822,13 @@ textarea {
   }
   .history-filter select {
     max-width: min(46vw, 180px);
+  }
+  .history-search {
+    min-width: 0;
+  }
+  .history-filter input {
+    flex: 1;
+    width: 100%;
   }
   .history-card {
     display: flex;
