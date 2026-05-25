@@ -267,6 +267,8 @@ export const api = {
     return { ...result, personas: normalizePersonas(result.personas) };
   },
   history: () => apiJson<HistoryItem[]>("/history"),
+  historyDetail: (id: string) =>
+    apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}`),
   format: () => apiJson<MailFormat>("/format"),
   updateFormat: (payload: Partial<MailFormat>) =>
     apiJson<MailFormat>("/format", {

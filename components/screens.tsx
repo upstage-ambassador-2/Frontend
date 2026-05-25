@@ -841,6 +841,12 @@ export function InboxScreen({
   );
 }
 
+type HistoryDetailState = {
+  item?: HistoryItem;
+  isLoading: boolean;
+  error?: string;
+};
+
 export function HistoryScreen({
   history,
   personas,
@@ -851,6 +857,9 @@ export function HistoryScreen({
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterId, setFilterId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [detailById, setDetailById] = useState<Record<string, HistoryDetailState>>(
+    {},
+  );
   const pmap = useMemo(
     () => Object.fromEntries(personas.map((persona) => [persona.id, persona])),
     [personas],
@@ -917,6 +926,52 @@ export function HistoryScreen({
     }
   }, [openId, visibleHistory]);
 
+  const handleHistoryToggle = useCallback(
+    (item: HistoryItem) => {
+      const isClosing = openId === item.id;
+      setOpenId(isClosing ? null : item.id);
+      if (isClosing) return;
+
+      const cachedDetail = detailById[item.id];
+      if (cachedDetail?.item || cachedDetail?.isLoading) return;
+
+      setDetailById((current) => ({
+        ...current,
+        [item.id]: {
+          ...current[item.id],
+          isLoading: true,
+          error: undefined,
+        },
+      }));
+
+      void api
+        .historyDetail(item.id)
+        .then((detail) => {
+          setDetailById((current) => ({
+            ...current,
+            [item.id]: {
+              item: detail,
+              isLoading: false,
+            },
+          }));
+        })
+        .catch((error: unknown) => {
+          setDetailById((current) => ({
+            ...current,
+            [item.id]: {
+              ...current[item.id],
+              isLoading: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "상세를 불러오지 못했습니다.",
+            },
+          }));
+        });
+    },
+    [detailById, openId],
+  );
+
   return (
     <div className="page history-page">
       <PageTitle
@@ -969,12 +1024,19 @@ export function HistoryScreen({
           const status = item.status || "draft";
           const toneMeta = [item.tone, item.length].filter(Boolean).join(" · ");
           const detailId = `history-detail-${item.id}`;
+          const detailState = detailById[item.id];
+          const detailItem = detailState?.item || item;
+          const detailTarget = targetFor(detailItem);
+          const detailSubject = detailItem.subject || detailItem.subj || subject;
+          const detailPreview =
+            detailItem.prev || detailItem.body || detailItem.brief || preview;
+          const detailBody = detailItem.body || detailPreview;
           return (
             <div key={item.id}>
               <button
                 type="button"
                 className="history-row history-button"
-                onClick={() => setOpenId(openId === item.id ? null : item.id)}
+                onClick={() => handleHistoryToggle(item)}
                 aria-expanded={openId === item.id}
                 aria-controls={detailId}
               >
@@ -1010,10 +1072,10 @@ export function HistoryScreen({
                   id={detailId}
                   className="history-detail"
                   role="region"
-                  aria-label={`${subject} 상세`}
+                  aria-label={`${detailSubject} 상세`}
                 >
                   <div className="history-detail-head">
-                    <div className="history-detail-title">{subject}</div>
+                    <div className="history-detail-title">{detailSubject}</div>
                     <button
                       type="button"
                       className="icon-btn history-detail-close"
@@ -1024,10 +1086,16 @@ export function HistoryScreen({
                     </button>
                   </div>
                   <div className="history-detail-meta">
-                    <span>대상: {target.name}</span>
-                    <span>{target.email || target.source}</span>
+                    <span>대상: {detailTarget.name}</span>
+                    <span>{detailTarget.email || detailTarget.source}</span>
                   </div>
-                  <p>{item.body || preview}</p>
+                  {detailState?.isLoading ? (
+                    <p className="muted">상세를 불러오는 중입니다.</p>
+                  ) : detailState?.error ? (
+                    <p className="muted">상세를 불러오지 못했습니다.</p>
+                  ) : (
+                    <p>{detailBody}</p>
+                  )}
                 </div>
               )}
             </div>
