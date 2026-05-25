@@ -31,6 +31,7 @@ import { extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
+  IconChevron,
   IconClose,
   IconFormat,
   IconHistory,
@@ -759,6 +760,7 @@ export function InboxScreen({
             onClick={goPrevious}
             disabled={!canGoPrevious || busy}
           >
+            <IconChevron size={13} style={{ transform: "rotate(180deg)" }} />
             이전
           </button>
           <span className="inbox-page-label">
@@ -774,6 +776,7 @@ export function InboxScreen({
               <span className="result-spinner" aria-hidden />
             ) : null}
             다음
+            <IconChevron size={13} />
           </button>
         </div>
       </div>
