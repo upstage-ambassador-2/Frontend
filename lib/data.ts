@@ -108,6 +108,8 @@ export type HistoryItem = {
   targetEmail?: string | null;
   personaName?: string | null;
   personaEmail?: string | null;
+  counterpartyName?: string | null;
+  counterpartyEmail?: string | null;
   replyFromAddr?: string | null;
   replySubject?: string | null;
   brief?: string;

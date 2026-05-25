@@ -862,11 +862,13 @@ export function HistoryScreen({
       item.targetEmail ||
       item.personaEmail ||
       personaEmail(persona) ||
+      item.counterpartyEmail ||
       replyEmail ||
       "";
     const targetName =
       item.targetName ||
       item.personaName ||
+      item.counterpartyName ||
       persona?.name ||
       item.replyFromAddr ||
       "대상 미확인";
