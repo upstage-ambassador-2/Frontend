@@ -135,6 +135,11 @@ export type SendPayload = {
   replyContextId?: string | null;
 };
 
+export type HistoryDraftPatchPayload = {
+  subject?: string;
+  body?: string;
+};
+
 export type SendResponse = {
   id: string;
   threadId: string | null;
@@ -292,6 +297,15 @@ export const api = {
   history: () => apiJson<HistoryItem[]>("/history"),
   historyDetail: (id: string) =>
     apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}`),
+  updateHistoryDraft: (id: string, payload: HistoryDraftPatchPayload) =>
+    apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}/draft`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  resetHistoryDraft: (id: string) =>
+    apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}/draft/reset`, {
+      method: "POST",
+    }),
   format: () => apiJson<MailFormat>("/format"),
   updateFormat: (payload: Partial<MailFormat>) =>
     apiJson<MailFormat>("/format", {
