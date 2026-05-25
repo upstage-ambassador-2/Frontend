@@ -23,11 +23,13 @@ function RecipientPicker({
   current,
   onPick,
   label = "받는 사람 변경",
+  disabled = false,
 }: {
   personas: Persona[];
   current: string;
   onPick: (id: string) => void;
   label?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -48,8 +50,12 @@ function RecipientPicker({
       <button
         type="button"
         className="recipient-change"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((value) => !value);
+        }}
         aria-expanded={open}
+        disabled={disabled}
       >
         {label}
       </button>
@@ -63,6 +69,7 @@ function RecipientPicker({
               className="side-person"
               role="option"
               aria-selected={current === persona.id}
+              disabled={disabled}
               style={{ width: "100%" }}
               onClick={() => {
                 onPick(persona.id);
@@ -90,11 +97,13 @@ function RecipientCard({
   personas,
   onPick,
   replyContext,
+  locked,
 }: {
   persona: Persona | undefined;
   personas: Persona[];
   onPick: (id: string) => void;
   replyContext: ReplyContext | null;
+  locked: boolean;
 }) {
   if (!persona) {
     return (
@@ -105,6 +114,7 @@ function RecipientCard({
             current=""
             onPick={onPick}
             label="받는 사람 선택"
+            disabled={locked}
           />
         ) : (
           <div className="small muted">먼저 페르소나를 추가해주세요.</div>
@@ -158,6 +168,7 @@ function RecipientCard({
           personas={personas}
           current={persona.id}
           onPick={onPick}
+          disabled={locked}
         />
       )}
     </div>
@@ -198,11 +209,13 @@ function Knob({
   options,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   options: ScaleOption[];
   value: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   const selected = selectedScaleOption(options, value);
 
@@ -222,6 +235,7 @@ function Knob({
               (selected.value === option.value ? " is-selected" : "")
             }
             aria-pressed={selected.value === option.value}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
           >
             {option.label}
@@ -299,6 +313,7 @@ export function ComposerScreen({
   const lengthLabel = lengthOption.label;
 
   const canGenerate = !!brief.trim() || !!replyContext;
+  const canRequestGenerate = canGenerate && !generating;
   const canSend =
     !!draft?.subject.trim() &&
     !!draft?.body.trim() &&
@@ -308,7 +323,7 @@ export function ComposerScreen({
   const currentBody = draft?.body || "";
 
   const runGenerate = useCallback(async () => {
-    if (!canGenerate) return;
+    if (!canRequestGenerate) return;
     const previousDraft = draft;
     let receivedDelta = false;
     abortRef.current?.abort();
@@ -360,7 +375,7 @@ export function ComposerScreen({
     }
   }, [
     brief,
-    canGenerate,
+    canRequestGenerate,
     draft,
     lengthOption.value,
     onHistoryCreated,
@@ -431,6 +446,7 @@ export function ComposerScreen({
           personas={personas}
           onPick={setSelectedId}
           replyContext={replyContext}
+          locked={generating}
         />
       </div>
 
@@ -447,6 +463,7 @@ export function ComposerScreen({
             type="button"
             className="btn-secondary reply-context-clear"
             onClick={onClearReplyContext}
+            disabled={generating}
           >
             제거
           </button>
@@ -467,6 +484,8 @@ export function ComposerScreen({
             value={brief}
             onChange={(event) => setBrief(event.target.value)}
             placeholder="예: 결제 모듈 일정이 하루 정도 지연될 것 같음. 내일까지 완료 가능."
+            readOnly={generating}
+            aria-disabled={generating}
             data-testid="brief-input"
           />
 
@@ -476,12 +495,14 @@ export function ComposerScreen({
               options={TONE_SCALE}
               value={tone}
               onChange={setTone}
+              disabled={generating}
             />
             <Knob
               label="길이"
               options={LENGTH_SCALE}
               value={length}
               onChange={setLength}
+              disabled={generating}
             />
           </div>
 
@@ -510,7 +531,7 @@ export function ComposerScreen({
               type="button"
               className="btn-primary"
               onClick={runGenerate}
-              disabled={!canGenerate || generating}
+              disabled={!canRequestGenerate}
               data-testid="generate-btn"
             >
               <IconSparkle size={14} />
@@ -542,7 +563,7 @@ export function ComposerScreen({
                 className="icon-btn"
                 onClick={runGenerate}
                 aria-label="다시 생성"
-                disabled={!canGenerate || generating}
+                disabled={!canRequestGenerate}
               >
                 <IconRefresh size={15} />
               </button>
