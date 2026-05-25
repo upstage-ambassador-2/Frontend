@@ -22,6 +22,7 @@ import {
   GMAIL_PAGE_SIZE_OPTIONS,
   api,
   normalizeGmailPageSize,
+  startGoogleLogin,
   type GmailMessage,
   type MeResponse,
   type PaginatedGmailMessages,
@@ -1311,12 +1312,16 @@ function Row({
 function Integration({
   title,
   desc,
-  on,
+  statusLabel,
+  statusTone,
+  actionLabel,
   onClick,
 }: {
   title: string;
   desc: string;
-  on?: boolean;
+  statusLabel: string;
+  statusTone: "green" | "amber" | "gray";
+  actionLabel: string;
   onClick: () => void;
 }) {
   return (
@@ -1328,11 +1333,9 @@ function Integration({
         <div className="settings-integration-title">{title}</div>
         <div className="small muted">{desc}</div>
       </div>
-      <span className={`tag ${on ? "green" : "gray"}`}>
-        {on ? "연결됨" : "지원 예정"}
-      </span>
+      <span className={`tag ${statusTone}`}>{statusLabel}</span>
       <button type="button" className="btn-secondary" onClick={onClick}>
-        {on ? "관리" : "연결"}
+        {actionLabel}
       </button>
     </div>
   );
@@ -1355,8 +1358,19 @@ export function SettingsScreen({
       onToast(error instanceof Error ? error.message : "통합 상태를 처리하지 못했습니다");
     }
   };
+  const reauthorizeGoogle = async () => {
+    try {
+      window.location.href = await startGoogleLogin("/settings");
+    } catch (error) {
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
+  };
   const userName = me?.user.name || "로그인 사용자";
   const userEmail = me?.user.email || "mello@example.com";
+  const gmailConnected = !!me?.integrations.gmail;
+  const contactsConnected = !!me?.integrations.contacts;
 
   return (
     <div className="page settings-page">
@@ -1404,25 +1418,35 @@ export function SettingsScreen({
           <Integration
             title="Gmail"
             desc="받은편지함 조회 · 사용자 본인 명의 발송"
-            on={!!me?.integrations.gmail}
-            onClick={() => void planned("gmail")}
+            statusLabel={gmailConnected ? "연결됨" : "권한 필요"}
+            statusTone={gmailConnected ? "green" : "amber"}
+            actionLabel={gmailConnected ? "관리" : "재동의"}
+            onClick={gmailConnected ? () => void planned("gmail") : reauthorizeGoogle}
           />
           <Integration
             title="Google Contacts"
             desc="연락처를 페르소나 후보로 가져오기"
-            on={!!me?.integrations.contacts}
-            onClick={() => void planned("contacts")}
+            statusLabel={contactsConnected ? "연결됨" : "권한 필요"}
+            statusTone={contactsConnected ? "green" : "amber"}
+            actionLabel={contactsConnected ? "관리" : "재동의"}
+            onClick={
+              contactsConnected ? () => void planned("contacts") : reauthorizeGoogle
+            }
           />
           <Integration
             title="Slack"
             desc="DM 톤 맞춰 전송"
-            on={false}
+            statusLabel="지원 예정"
+            statusTone="gray"
+            actionLabel="연결"
             onClick={() => void planned("slack")}
           />
           <Integration
             title="Notion"
             desc="작성 결과를 페이지로 저장"
-            on={false}
+            statusLabel="지원 예정"
+            statusTone="gray"
+            actionLabel="연결"
             onClick={() => void planned("notion")}
           />
         </div>
