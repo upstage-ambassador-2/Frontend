@@ -120,10 +120,10 @@ export function MelloShell({
   const router = useRouter();
   const route = routeFromPathname(pathname);
   const routePersonaId = personaIdFromPathname(pathname);
-  const firstPersona = initialPersonas[0];
   const initialPersona =
-    initialPersonas.find((persona) => persona.id === routePersonaId) ??
-    firstPersona;
+    routePersonaId != null
+      ? initialPersonas.find((persona) => persona.id === routePersonaId)
+      : undefined;
 
   const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
@@ -141,7 +141,7 @@ export function MelloShell({
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const currentPerson = useMemo(
-    () => personas.find((p) => p.id === selectedId) ?? personas[0],
+    () => personas.find((p) => p.id === selectedId),
     [personas, selectedId],
   );
 
@@ -172,6 +172,17 @@ export function MelloShell({
     }
     applyPersona(routePersonaId, { clearReply: true });
   }, [applyPersona, route, routePersonaId, selectedId]);
+
+  useEffect(() => {
+    if (pathname !== "/compose" || !selectedId) {
+      return;
+    }
+    setSelectedIdState("");
+    setTone(presetTone(undefined));
+    setLength(presetLength(undefined));
+    setBrief("");
+    setReplyContext(null);
+  }, [pathname, selectedId]);
 
   const setSelectedId = useCallback(
     (id: string) => {
@@ -237,14 +248,6 @@ export function MelloShell({
     }
     return [labelForRoute(route), null];
   }, [currentPerson, replyContext, route]);
-
-  const resetCompose = useCallback(() => {
-    const persona = personas.find((p) => p.id === selectedId);
-    setReplyContext(null);
-    setBrief(MELLO_SCENARIOS[selectedId]?.brief || "");
-    setTone(presetTone(persona));
-    setLength(presetLength(persona));
-  }, [personas, selectedId]);
 
   const handleReply = useCallback(
     (context: ReplyContext) => {
@@ -356,7 +359,6 @@ export function MelloShell({
           <Topbar
             route={route}
             crumb={crumb}
-            onResetCompose={resetCompose}
             onOpenMobileMenu={() => setMobileDrawerOpen(true)}
             mobileMenuOpen={mobileDrawerOpen}
           />

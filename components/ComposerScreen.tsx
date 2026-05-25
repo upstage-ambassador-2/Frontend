@@ -22,10 +22,12 @@ function RecipientPicker({
   personas,
   current,
   onPick,
+  label = "받는 사람 변경",
 }: {
   personas: Persona[];
   current: string;
   onPick: (id: string) => void;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -49,7 +51,7 @@ function RecipientPicker({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
-        받는 사람 변경
+        {label}
       </button>
       {open && (
         <div role="listbox" aria-label="받는 사람 선택" className="popover">
@@ -96,8 +98,17 @@ function RecipientCard({
 }) {
   if (!persona) {
     return (
-      <div className="recipient">
-        <div className="small muted">먼저 페르소나를 추가해주세요.</div>
+      <div className="recipient recipient-empty">
+        {personas.length > 0 ? (
+          <RecipientPicker
+            personas={personas}
+            current=""
+            onPick={onPick}
+            label="받는 사람 선택"
+          />
+        ) : (
+          <div className="small muted">먼저 페르소나를 추가해주세요.</div>
+        )}
       </div>
     );
   }
@@ -263,7 +274,7 @@ export function ComposerScreen({
   onHistoryUpdated,
 }: Props) {
   const persona = useMemo(
-    () => personas.find((item) => item.id === selectedId) ?? personas[0],
+    () => personas.find((item) => item.id === selectedId),
     [personas, selectedId],
   );
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -577,7 +588,10 @@ export function ComposerScreen({
             >
               <IconCopy size={14} /> 복사
             </button>
-            {!replyContext && !persona?.email && (
+            {!replyContext && !persona && (
+              <span className="send-warning">받는 사람 선택 후 발송 가능</span>
+            )}
+            {!replyContext && persona && !persona.email && (
               <span className="send-warning">이메일 추가 후 발송 가능</span>
             )}
             <button

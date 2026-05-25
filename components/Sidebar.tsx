@@ -16,7 +16,7 @@ import {
   IconMail,
   IconClose,
 } from "./icons";
-import { composeHref, hrefForRoute, type Route } from "@/lib/routes";
+import { hrefForRoute, type Route } from "@/lib/routes";
 import type { User } from "@/lib/api";
 
 type NavItemProps = {
@@ -101,7 +101,7 @@ export function Sidebar({
           icon={<IconCompose size={14} />}
           label="작성"
           active={route === "compose"}
-          href={selectedId ? composeHref(selectedId) : hrefForRoute("compose")}
+          href={hrefForRoute("compose")}
           count="⌘N"
           onNavigate={onCloseMobile}
         />
