@@ -454,7 +454,7 @@ export function PeopleScreen({
         relation: draft.relation.trim(),
         tone: normalizePersonaTone(draft.tone),
         notes: draft.notes.trim(),
-        email: draft.email.trim(),
+        email: draft.email.trim() || null,
         role: draft.role.trim(),
         keywords: splitList(draft.keywords),
         avoid: splitList(draft.avoid),
