@@ -29,6 +29,18 @@ const emailFromAddress = (value = "") => {
   return email.includes("@") ? email : "";
 };
 const normalizedEmail = (value = "") => emailFromAddress(value).toLowerCase();
+const normalizedName = (value = "") =>
+  String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+const senderNameFromAddress = (value = "") => {
+  const text = String(value || "").trim();
+  const match = text.match(/^(.*?)\s*<[^>]+>$/);
+  return (match?.[1] || "").trim().replace(/^"|"$/g, "");
+};
 const PERSONA_TONE_VALUES = new Set([
   "매우 격식",
   "격식",
@@ -225,6 +237,7 @@ let history = [
     when: "오늘 14:02",
     createdAt: minutesAgo(180),
     sentAt: null,
+    gmailMessageId: null,
     subj: "[공유] 결제 모듈 QA 결과",
     prev: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정…",
   },
@@ -421,14 +434,39 @@ function lengthLabel(value) {
 
 function historyOut(item) {
   const preview = item.body.replace(/\n/g, " ").slice(0, 120);
+  const { gmailMessageId, ...output } = item;
   return {
-    ...item,
+    ...output,
     subj: item.subject,
     prev: preview,
   };
 }
 
+function senderMetadata(message) {
+  const senderEmail = normalizedEmail(message.fromAddr || message.from);
+  const persona = senderEmail
+    ? personas.find((item) => normalizedEmail(item.email) === senderEmail)
+    : null;
+  return {
+    senderEmail,
+    senderName:
+      senderNameFromAddress(message.fromAddr || message.from) ||
+      senderEmail.split("@")[0] ||
+      null,
+    personaId: persona?.id || null,
+    persona: persona || null,
+  };
+}
+
+function gmailMessageOut(message) {
+  return {
+    ...message,
+    ...senderMetadata(message),
+  };
+}
+
 function upsertReplyContext(message) {
+  const metadata = senderMetadata(message);
   let context = replyContexts.find((item) => item.gmailMessageId === message.id);
   if (!context) {
     context = {
@@ -443,10 +481,31 @@ function upsertReplyContext(message) {
       messageId: message.messageId,
       references: message.references,
       date: message.date,
+      senderEmail: metadata.senderEmail,
+      senderName: metadata.senderName,
+      personaId: metadata.personaId,
+      persona: metadata.persona,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
     replyContexts.push(context);
+  } else {
+    Object.assign(context, {
+      fromAddr: message.fromAddr,
+      from: message.fromAddr,
+      subject: message.subject,
+      snippet: message.snippet,
+      rawBody: message.rawBody,
+      threadId: message.threadId,
+      messageId: message.messageId,
+      references: message.references,
+      date: message.date,
+      senderEmail: metadata.senderEmail,
+      senderName: metadata.senderName,
+      personaId: metadata.personaId,
+      persona: metadata.persona,
+      updatedAt: nowIso(),
+    });
   }
   return context;
 }
@@ -540,6 +599,7 @@ async function streamDraft(req, res, payload) {
     when: "방금 전",
     createdAt: nowIso(),
     sentAt: null,
+    gmailMessageId: null,
     subj: draft.subject,
     prev: draft.body.replace(/\n/g, " ").slice(0, 120),
   };
@@ -773,6 +833,13 @@ async function handler(req, res) {
           email: "mentor@mello.test",
         },
         {
+          name: "김지훈   팀장",
+          relation: "Google Contacts",
+          tone: "중립",
+          notes: "이미 등록된 연락처와 이름이 같은 항목입니다.",
+          email: "lead-copy@mello.test",
+        },
+        {
           name: "한수민",
           relation: "Google Contacts",
           tone: "친근",
@@ -782,12 +849,19 @@ async function handler(req, res) {
       ];
       let imported = 0;
       let skipped = 0;
+      const existingEmails = new Set(
+        personas.map((item) => normalizedEmail(item.email)).filter(Boolean),
+      );
+      const existingNames = new Set(
+        personas.map((item) => normalizedName(item.name)).filter(Boolean),
+      );
       for (const contact of contactPersonas) {
+        const contactEmail = normalizedEmail(contact.email);
+        const contactName = normalizedName(contact.name);
         if (
-          personas.some(
-            (item) =>
-              normalizedEmail(item.email) === normalizedEmail(contact.email),
-          )
+          !contactName ||
+          (contactEmail && existingEmails.has(contactEmail)) ||
+          existingNames.has(contactName)
         ) {
           skipped += 1;
           continue;
@@ -805,6 +879,8 @@ async function handler(req, res) {
             contact,
           ),
         );
+        if (contactEmail) existingEmails.add(contactEmail);
+        existingNames.add(contactName);
         imported += 1;
       }
       sendJson(res, 200, { imported, skipped, personas }, headers);
@@ -859,7 +935,7 @@ async function handler(req, res) {
         {
           messages: gmailMessages
             .slice(start, end)
-            .map(({ rawBody, ...message }) => message),
+            .map(({ rawBody, ...message }) => gmailMessageOut(message)),
           nextPageToken,
           resultSizeEstimate: gmailMessages.length,
           limit,
@@ -877,8 +953,9 @@ async function handler(req, res) {
         sendJson(res, 404, { detail: "메일을 찾을 수 없습니다." }, headers);
         return;
       }
-      const replyContext = upsertReplyContext(message);
-      sendJson(res, 200, { ...message, replyContext }, headers);
+      const output = gmailMessageOut(message);
+      const replyContext = upsertReplyContext(output);
+      sendJson(res, 200, { ...output, replyContext }, headers);
       return;
     }
 
@@ -898,10 +975,6 @@ async function handler(req, res) {
       const historyId = payload.historyId || payload.history_id;
       const replyContextId = payload.replyContextId || payload.reply_context_id;
       const item = history.find((entry) => entry.id === historyId);
-      if (item) {
-        item.status = "sent";
-        item.sentAt = nowIso();
-      }
       const replyContext = replyContexts.find(
         (context) => context.id === replyContextId,
       );
@@ -910,15 +983,40 @@ async function handler(req, res) {
         sendJson(res, 422, { detail: "받는 사람 이메일이 필요합니다." }, headers);
         return;
       }
+      if (item?.status === "sent" && item.gmailMessageId) {
+        sendJson(
+          res,
+          200,
+          {
+            id: item.gmailMessageId,
+            threadId: replyContext?.threadId || null,
+            status: "sent",
+            history: historyOut(item),
+            raw: {
+              id: item.gmailMessageId,
+              deduplicated: true,
+            },
+          },
+          headers,
+        );
+        return;
+      }
+      const sentId = `sent-${randomUUID()}`;
+      if (item) {
+        item.status = "sent";
+        item.sentAt = nowIso();
+        item.gmailMessageId = sentId;
+      }
       sendJson(
         res,
         200,
         {
-          id: `sent-${randomUUID()}`,
+          id: sentId,
           threadId: replyContext?.threadId || null,
           status: "sent",
           history: item ? historyOut(item) : null,
           raw: {
+            id: sentId,
             from: user.email,
             to,
             cc: payload.cc || [],
