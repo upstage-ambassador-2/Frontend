@@ -104,6 +104,8 @@ export function Sidebar({
           item.targetEmail,
           item.personaName,
           item.personaEmail,
+          item.counterpartyName,
+          item.counterpartyEmail,
           item.replyFromAddr,
           item.status,
           item.when,
@@ -194,8 +196,10 @@ export function Sidebar({
                 const target =
                   item.targetName ||
                   item.personaName ||
+                  item.counterpartyName ||
                   item.targetEmail ||
                   item.personaEmail ||
+                  item.counterpartyEmail ||
                   "대상 미확인";
                 return (
                   <Link
