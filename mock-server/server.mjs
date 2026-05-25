@@ -975,9 +975,22 @@ async function handler(req, res) {
       const historyId = payload.historyId || payload.history_id;
       const replyContextId = payload.replyContextId || payload.reply_context_id;
       const item = history.find((entry) => entry.id === historyId);
+      if (historyId && !item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
       const replyContext = replyContexts.find(
         (context) => context.id === replyContextId,
       );
+      if (replyContextId && !replyContext) {
+        sendJson(
+          res,
+          404,
+          { detail: "답장 컨텍스트를 찾을 수 없습니다." },
+          headers,
+        );
+        return;
+      }
       const to = payload.to || replyContext?.fromAddr || "";
       if (!to) {
         sendJson(res, 422, { detail: "받는 사람 이메일이 필요합니다." }, headers);
@@ -989,7 +1002,7 @@ async function handler(req, res) {
           200,
           {
             id: item.gmailMessageId,
-            threadId: replyContext?.threadId || null,
+            threadId: null,
             status: "sent",
             history: historyOut(item),
             raw: {
