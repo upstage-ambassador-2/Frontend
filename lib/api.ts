@@ -188,6 +188,11 @@ function emitSessionExpired(message: string): void {
   );
 }
 
+function isSessionExpiredError(error: ApiError): boolean {
+  if (error.status !== 401) return false;
+  return /로그인이 필요|세션이 만료|사용자를 찾을 수/.test(error.message);
+}
+
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
@@ -207,7 +212,7 @@ export async function apiFetch(
   });
   if (!response.ok) {
     const error = await parseError(response);
-    if (error.status === 401) emitSessionExpired(error.message);
+    if (isSessionExpiredError(error)) emitSessionExpired(error.message);
     throw error;
   }
   return response;
