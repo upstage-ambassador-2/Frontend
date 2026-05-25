@@ -51,8 +51,11 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
   const personasRef = useRef(mello.personas);
 
   const senderEmail = useMemo(
-    () => normalizeEmailAddress(initialReplyContext.fromAddr),
-    [initialReplyContext.fromAddr],
+    () =>
+      normalizeEmailAddress(
+        initialReplyContext.senderEmail || initialReplyContext.fromAddr,
+      ),
+    [initialReplyContext.fromAddr, initialReplyContext.senderEmail],
   );
 
   useEffect(() => {
@@ -90,7 +93,9 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
     const createPersona = async () => {
       try {
         const created = await api.createPersona({
-          name: personaNameFromSender(initialReplyContext.fromAddr, senderEmail),
+          name:
+            initialReplyContext.senderName ||
+            personaNameFromSender(initialReplyContext.fromAddr, senderEmail),
           relation: "",
           tone: "중립",
           notes: "",
@@ -117,6 +122,7 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
     void createPersona();
   }, [
     initialReplyContext.fromAddr,
+    initialReplyContext.senderName,
     mello.me.user.email,
     mello.personas,
     mello.selectedId,

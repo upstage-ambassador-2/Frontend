@@ -16,10 +16,16 @@ export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
   const { personas, selectedId } = useMello();
 
   const personaMatchForMessage = (message: GmailMessage) => {
-    const senderEmail = normalizeEmailAddress(message.fromAddr || message.from);
-    const matched = personas.find(
+    const senderEmail = normalizeEmailAddress(
+      message.senderEmail || message.fromAddr || message.from,
+    );
+    const matchedById = message.personaId
+      ? personas.find((persona) => persona.id === message.personaId)
+      : undefined;
+    const matchedByEmail = personas.find(
       (persona) => normalizeEmailAddress(persona.email) === senderEmail,
     );
+    const matched = matchedById || matchedByEmail || message.persona || undefined;
     return {
       matched,
       senderEmail,

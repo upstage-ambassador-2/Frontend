@@ -28,7 +28,7 @@ import {
   type PaginatedGmailMessages,
   type PersonaPayload,
 } from "@/lib/api";
-import { extractEmailAddress } from "@/lib/email";
+import { extractEmailAddress, normalizeEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
@@ -352,6 +352,18 @@ function parseInboxSender(value: string) {
   };
 }
 
+function inboxSenderFromMessage(message: GmailMessage) {
+  const fallback = parseInboxSender(message.fromAddr || message.from || "");
+  return {
+    name:
+      decodeHtmlEntities(message.senderName).trim() ||
+      fallback.name ||
+      message.senderEmail ||
+      "알 수 없는 발신자",
+    email: normalizeEmailAddress(message.senderEmail) || fallback.email,
+  };
+}
+
 const inboxMonthNumbers: Record<string, string> = {
   jan: "01",
   feb: "02",
@@ -643,7 +655,7 @@ export function InboxScreen({
   const messages = useMemo(
     () =>
       initialPage.messages.map((message) => {
-        const sender = parseInboxSender(message.fromAddr || message.from || "");
+        const sender = inboxSenderFromMessage(message);
         return {
           ...message,
           sender,

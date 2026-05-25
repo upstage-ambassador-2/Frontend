@@ -39,6 +39,10 @@ export type ReplyContext = {
   gmailMessageId: string;
   fromAddr: string;
   from?: string;
+  senderEmail?: string | null;
+  senderName?: string | null;
+  personaId?: string | null;
+  persona?: Persona | null;
   subject: string;
   snippet: string;
   rawBody: string;
@@ -55,6 +59,10 @@ export type GmailMessage = {
   threadId: string | null;
   fromAddr: string;
   from?: string;
+  senderEmail?: string | null;
+  senderName?: string | null;
+  personaId?: string | null;
+  persona?: Persona | null;
   subject: string;
   snippet: string;
   date: string | null;
