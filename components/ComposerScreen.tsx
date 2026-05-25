@@ -309,13 +309,14 @@ export function ComposerScreen({
 
   const runGenerate = useCallback(async () => {
     if (!canGenerate) return;
+    const previousDraft = draft;
+    let receivedDelta = false;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     setGenerating(true);
-    setDraft({ subject: "", body: "", history: null });
 
     try {
       await generateDraft(
@@ -329,10 +330,12 @@ export function ComposerScreen({
         {
           onDelta: (chunk, subject) => {
             if (requestRef.current !== requestId) return;
+            const isFirstDelta = !receivedDelta;
+            receivedDelta = true;
             setDraft((current) => ({
-              subject: subject || current?.subject || "",
-              body: `${current?.body || ""}${chunk}`,
-              history: current?.history || null,
+              subject: subject || (isFirstDelta ? "" : current?.subject || ""),
+              body: `${isFirstDelta ? "" : current?.body || ""}${chunk}`,
+              history: isFirstDelta ? null : current?.history || null,
             }));
           },
           onDone: (result) => {
@@ -342,6 +345,7 @@ export function ComposerScreen({
           },
           onError: (message) => {
             if (requestRef.current !== requestId) return;
+            setDraft(previousDraft);
             onToast(message);
           },
         },
@@ -349,6 +353,7 @@ export function ComposerScreen({
       );
     } catch (error) {
       if (controller.signal.aborted) return;
+      setDraft(previousDraft);
       onToast(error instanceof Error ? error.message : "초안 생성에 실패했습니다.");
     } finally {
       if (requestRef.current === requestId) setGenerating(false);
@@ -356,6 +361,7 @@ export function ComposerScreen({
   }, [
     brief,
     canGenerate,
+    draft,
     lengthOption.value,
     onHistoryCreated,
     onToast,
