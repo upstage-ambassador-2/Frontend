@@ -850,19 +850,12 @@ export function HistoryScreen({
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterId, setFilterId] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const pmap = useMemo(
     () => Object.fromEntries(personas.map((persona) => [persona.id, persona])),
     [personas],
   );
-  const visibleHistory = useMemo(() => {
-    if (filterId === "all") return history;
-    if (filterId === "reply") {
-      return history.filter((item) => !!item.replyContextId);
-    }
-    return history.filter((item) => item.personaId === filterId);
-  }, [filterId, history]);
-
-  const targetFor = (item: HistoryItem) => {
+  const targetFor = useCallback((item: HistoryItem) => {
     const persona = item.personaId ? pmap[item.personaId] : undefined;
     const replyEmail = extractEmailAddress(item.replyFromAddr);
     const targetEmail =
@@ -883,7 +876,44 @@ export function HistoryScreen({
       email: targetEmail,
       source: item.replyContextId ? "답장" : targetEmail ? "메일" : "이메일 없음",
     };
-  };
+  }, [pmap]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleHistory = useMemo(() => {
+    const filtered =
+      filterId === "all"
+        ? history
+        : filterId === "reply"
+          ? history.filter((item) => !!item.replyContextId)
+          : history.filter((item) => item.personaId === filterId);
+
+    if (!normalizedSearch) return filtered;
+
+    return filtered.filter((item) => {
+      const target = targetFor(item);
+      return [
+        item.subject,
+        item.subj,
+        item.prev,
+        item.body,
+        item.brief,
+        item.replySubject,
+        target.name,
+        target.email,
+        target.source,
+        item.status,
+        item.when,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+    });
+  }, [filterId, history, normalizedSearch, targetFor]);
+
+  useEffect(() => {
+    if (openId && !visibleHistory.some((item) => item.id === openId)) {
+      setOpenId(null);
+    }
+  }, [openId, visibleHistory]);
 
   return (
     <div className="page history-page">
@@ -908,9 +938,16 @@ export function HistoryScreen({
                 <option value="reply">답장 기록</option>
               </select>
             </label>
-            <button type="button" className="btn-secondary">
-              <IconSearch size={13} /> 검색
-            </button>
+            <label className="history-filter history-search">
+              <IconSearch size={13} />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="제목, 본문, 사람 검색"
+                aria-label="히스토리 검색"
+              />
+            </label>
           </div>
         }
       />
@@ -993,7 +1030,11 @@ export function HistoryScreen({
           );
         })}
         {visibleHistory.length === 0 && (
-          <div className="state-row">아직 작성한 메일이 없습니다.</div>
+          <div className="state-row">
+            {history.length === 0
+              ? "아직 작성한 메일이 없습니다."
+              : "검색 조건에 맞는 히스토리가 없습니다."}
+          </div>
         )}
       </div>
     </div>
