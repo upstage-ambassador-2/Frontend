@@ -98,6 +98,12 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
+function isValidOptionalEmail(value: string) {
+  const email = value.trim();
+  if (!email) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function draftFromPersona(persona: Persona): PersonaDraft {
   return {
     id: persona.id,
@@ -200,6 +206,9 @@ function PersonaDialog({
             <label>
               <span>이메일 (선택)</span>
               <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
                 value={draft.email}
                 onChange={(event) => onChange({ ...draft, email: event.target.value })}
                 placeholder="lead@example.com"
@@ -432,6 +441,10 @@ export function PeopleScreen({
   const save = async () => {
     if (!draft?.name.trim()) {
       onToast("이름은 필수입니다");
+      return;
+    }
+    if (!isValidOptionalEmail(draft.email)) {
+      onToast("이메일 형식을 확인해주세요");
       return;
     }
     setSaving(true);
