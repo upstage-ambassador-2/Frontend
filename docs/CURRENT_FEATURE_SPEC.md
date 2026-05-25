@@ -192,23 +192,43 @@ Compose, Gmail reply context, History, Google OAuth `gmail.send`
 ## 9. History
 
 ### 기능 명
-생성/발송 히스토리 조회
+생성/발송 히스토리 목록 및 상세 조회
 
 ### 기능 정의
-AI가 생성한 초안과 Gmail 발송 상태를 사용자별로 저장하고 History 화면에서 조회한다.
+AI가 생성한 초안과 Gmail 발송 상태를 사용자별로 저장하고, History 화면에서 목록 탐색과 행 단위 상세 확인을 제공한다.
 
 ### 기능 상세 동작
 - `/ai/generate` 완료 시 HistoryItem을 `draft` 상태로 생성한다.
 - `/gmail/send` 성공 시 연결된 HistoryItem을 `sent` 상태로 갱신한다.
-- History 화면은 `GET /history` 결과를 목록으로 보여준다.
+- 앱 shell의 서버 초기 데이터 로딩은 `GET /history` 결과를 받아 History 화면의 목록 초기 상태로 전달한다.
+- 목록 row는 subject, preview, 대상 이름/이메일, `draft` 또는 `sent` 상태, tone/length, 작성 시각을 표시한다.
 - 화면 내 client filter로 전체, persona별, reply 기록별 필터를 제공한다.
-- 각 row를 펼치면 subject, body, 대상 정보를 확인할 수 있다.
+- 검색어 입력 시 subject, preview/body, brief, reply subject, 대상 이름/이메일, 상태, 작성 시각을 클라이언트에서 필터링한다.
+- row 클릭 시 프론트엔드는 `GET /history/{id}`를 호출해 상세 데이터를 조회한다.
+- 상세 조회 중에는 기존 detail panel 안에서 loading 문구를 표시한다.
+- 상세 조회 성공 시 API 응답의 subject, body, 대상 정보를 detail panel에 표시한다.
+- 같은 row를 다시 열 때는 row id 기준으로 캐시된 상세 데이터를 재사용한다.
+- 상세 조회 실패 시 detail panel 안에 실패 문구를 표시하고 목록 화면은 유지한다.
+- 닫기 버튼 또는 열린 row 재클릭으로 detail panel을 닫는다.
+- 필터/검색 변경으로 열린 row가 목록에서 사라지면 detail panel을 닫는다.
+- persona가 삭제되었거나 목록 응답에 persona 관계가 없더라도 `personaName`, `personaEmail`, `counterpartyName`, `counterpartyEmail`, `replyFromAddr` fallback으로 대상 정보를 표시한다.
 
 ### 기능 효과
-사용자는 생성 및 발송 기록을 추적할 수 있다.
+사용자는 생성 및 발송 기록을 추적하고, 목록 preview만으로 부족한 경우 전체 subject/body를 즉시 확인할 수 있다.
 
 ### 연계 기능
 Compose, Gmail send, Persona, ReplyContext
+
+### 검증 기준
+- 앱 shell 서버 초기 데이터 로딩에서 받은 `GET /history` 목록이 History 화면에 사용자별로 표시된다.
+- History row 클릭 시 `GET /history/{id}`가 호출된다.
+- 상세 panel은 전체 subject/body와 대상 정보를 표시한다.
+- 상세 조회 실패가 전체 History 화면을 깨뜨리지 않는다.
+- 필터, 검색, 삭제된 persona fallback이 기존 History 탐색 흐름을 유지한다.
+
+### 후순위/제외 범위
+- 서버 검색 파라미터 기반 `/history?q=` 구현은 현재 범위에서 제외하고 클라이언트 필터로 유지한다.
+- History 삭제, 페이지네이션, 대량 데이터 최적화는 후순위로 둔다.
 
 ## 10. Local Mock E2E 지원
 
