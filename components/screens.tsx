@@ -77,6 +77,11 @@ type PersonaDraft = {
   prefer: string;
 };
 
+type PersonaValidation = {
+  field: "name" | "email";
+  message: string;
+};
+
 const emptyPersona = (): PersonaDraft => ({
   name: "",
   relation: "",
@@ -104,6 +109,16 @@ function isValidOptionalEmail(value: string) {
   const email = value.trim();
   if (!email) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validatePersonaDraft(draft: PersonaDraft): PersonaValidation | null {
+  if (!draft.name.trim()) {
+    return { field: "name", message: "이름은 필수입니다." };
+  }
+  if (!isValidOptionalEmail(draft.email)) {
+    return { field: "email", message: "이메일 형식을 확인해주세요." };
+  }
+  return null;
 }
 
 function draftFromPersona(persona: Persona): PersonaDraft {
@@ -141,6 +156,8 @@ function PersonaDialog({
   draft,
   saving,
   structuring,
+  validation,
+  saveDisabled,
   onChange,
   onCancel,
   onSave,
@@ -149,6 +166,8 @@ function PersonaDialog({
   draft: PersonaDraft;
   saving: boolean;
   structuring: boolean;
+  validation: PersonaValidation | null;
+  saveDisabled: boolean;
   onChange: (draft: PersonaDraft) => void;
   onCancel: () => void;
   onSave: () => void;
@@ -207,6 +226,10 @@ function PersonaDialog({
                 value={draft.name}
                 onChange={(event) => onChange({ ...draft, name: event.target.value })}
                 placeholder="예: 김지훈 팀장"
+                aria-invalid={validation?.field === "name" || undefined}
+                aria-describedby={
+                  validation?.field === "name" ? "persona-dialog-error" : undefined
+                }
               />
             </label>
             <label>
@@ -218,6 +241,10 @@ function PersonaDialog({
                 value={draft.email}
                 onChange={(event) => onChange({ ...draft, email: event.target.value })}
                 placeholder="lead@example.com"
+                aria-invalid={validation?.field === "email" || undefined}
+                aria-describedby={
+                  validation?.field === "email" ? "persona-dialog-error" : undefined
+                }
               />
             </label>
             <label>
@@ -302,13 +329,27 @@ function PersonaDialog({
               />
             </label>
           </div>
+          {validation && (
+            <div
+              id="persona-dialog-error"
+              className="state-row error-text persona-form-error"
+              role="alert"
+            >
+              {validation.message}
+            </div>
+          )}
         </div>
 
         <div className="modal-foot">
           <button type="button" className="btn-secondary" onClick={onCancel}>
             취소
           </button>
-          <button type="button" className="btn-primary" onClick={onSave} disabled={saving}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onSave}
+            disabled={saveDisabled}
+          >
             저장
           </button>
         </div>
@@ -452,6 +493,7 @@ export function PeopleScreen({
   const [draft, setDraft] = useState<PersonaDraft | null>(null);
   const [initialDraft, setInitialDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [structuring, setStructuring] = useState(false);
   const [importingContacts, setImportingContacts] = useState(false);
   const [reauthorizingContacts, setReauthorizingContacts] = useState(false);
@@ -466,10 +508,16 @@ export function PeopleScreen({
     () => serializeDraft(draft) !== serializeDraft(initialDraft),
     [draft, initialDraft],
   );
+  const draftValidation = useMemo(
+    () => (draft ? validatePersonaDraft(draft) : null),
+    [draft],
+  );
+  const visibleDraftValidation = saveAttempted ? draftValidation : null;
 
   const openDraft = (next: PersonaDraft) => {
     setInitialDraft(next);
     setDraft(next);
+    setSaveAttempted(false);
   };
 
   const closeDraft = useCallback(() => {
@@ -477,15 +525,15 @@ export function PeopleScreen({
     if (draftDirty && !window.confirm("저장하지 않은 변경을 버릴까요?")) return;
     setDraft(null);
     setInitialDraft(null);
+    setSaveAttempted(false);
   }, [draftDirty, saving]);
 
   const save = async () => {
-    if (!draft?.name.trim()) {
-      onToast("이름은 필수입니다");
-      return;
-    }
-    if (!isValidOptionalEmail(draft.email)) {
-      onToast("이메일 형식을 확인해주세요");
+    setSaveAttempted(true);
+    if (!draft) return;
+    const validation = validatePersonaDraft(draft);
+    if (validation) {
+      onToast(validation.message);
       return;
     }
     setSaving(true);
@@ -512,6 +560,7 @@ export function PeopleScreen({
       onChanged(nextPersonas);
       setDraft(null);
       setInitialDraft(null);
+      setSaveAttempted(false);
       onToast(draft.id ? "페르소나를 수정했습니다" : "페르소나를 추가했습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "저장하지 못했습니다");
@@ -656,6 +705,8 @@ export function PeopleScreen({
           draft={draft}
           saving={saving}
           structuring={structuring}
+          validation={visibleDraftValidation}
+          saveDisabled={saving || !!visibleDraftValidation}
           onChange={setDraft}
           onCancel={closeDraft}
           onSave={() => void save()}
@@ -737,9 +788,16 @@ export function PeopleScreen({
           );
         })}
         {personas.length === 0 && !loadError && (
-          <div className="empty-card">
+          <div className="empty-card people-empty-card">
             <IconPlus size={18} />
             <div>아직 등록된 페르소나가 없습니다.</div>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => openDraft(emptyPersona())}
+            >
+              <IconPlus size={14} /> 사람 추가
+            </button>
           </div>
         )}
       </div>

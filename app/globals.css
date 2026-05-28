@@ -1272,6 +1272,11 @@ textarea {
 .person-dialog .form-grid textarea {
   min-height: 74px;
 }
+.persona-form-error {
+  margin-top: 12px;
+  min-height: auto;
+  justify-content: flex-start;
+}
 .reply-context {
   background: var(--accent-softer);
   border: 1px solid var(--accent-soft);
@@ -1925,6 +1930,14 @@ textarea {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
+}
+.people-empty-card {
+  grid-column: 1 / -1;
+  gap: 10px;
+}
+.people-empty-card .btn-primary {
+  justify-content: center;
+  min-height: 34px;
 }
 .person-card {
   background: var(--surface);
