@@ -297,6 +297,8 @@ export const api = {
   history: () => apiJson<HistoryItem[]>("/history"),
   historyDetail: (id: string) =>
     apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}`),
+  deleteHistory: (id: string) =>
+    apiFetch(`/history/${encodeURIComponent(id)}`, { method: "DELETE" }),
   updateHistoryDraft: (id: string, payload: HistoryDraftPatchPayload) =>
     apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}/draft`, {
       method: "PATCH",

@@ -964,6 +964,17 @@ async function handler(req, res) {
       return;
     }
 
+    if (historyMatch && req.method === "DELETE") {
+      const item = history.find((entry) => entry.id === historyMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      history = history.filter((entry) => entry.id !== item.id);
+      sendNoContent(res, headers);
+      return;
+    }
+
     if (req.method === "GET" && path === "/gmail/messages") {
       const requestedLimit = Number(url.searchParams.get("limit") || 30);
       const limit = [10, 30, 50].includes(requestedLimit) ? requestedLimit : 30;

@@ -863,13 +863,18 @@ type HistoryDetailState = {
 export function HistoryScreen({
   history,
   personas,
+  onDeleted,
+  onToast,
 }: {
   history: HistoryItem[];
   personas: Persona[];
+  onDeleted: (id: string) => void;
+  onToast: (message: string) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterId, setFilterId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, HistoryDetailState>>(
     {},
   );
@@ -985,6 +990,28 @@ export function HistoryScreen({
     [detailById, openId],
   );
 
+  const handleHistoryDelete = useCallback(
+    async (item: HistoryItem) => {
+      if (!window.confirm("이 히스토리를 삭제할까요?")) return;
+      setDeletingId(item.id);
+      try {
+        await api.deleteHistory(item.id);
+        setDetailById((current) => {
+          const { [item.id]: _removed, ...rest } = current;
+          return rest;
+        });
+        setOpenId((current) => (current === item.id ? null : current));
+        onDeleted(item.id);
+        onToast("히스토리를 삭제했습니다");
+      } catch (error) {
+        onToast(error instanceof Error ? error.message : "히스토리를 삭제하지 못했습니다.");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [onDeleted, onToast],
+  );
+
   return (
     <div className="page history-page">
       <PageTitle
@@ -1089,6 +1116,15 @@ export function HistoryScreen({
                 >
                   <div className="history-detail-head">
                     <div className="history-detail-title">{detailSubject}</div>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => void handleHistoryDelete(detailItem)}
+                      disabled={deletingId === detailItem.id}
+                    >
+                      <IconClose size={13} />
+                      {deletingId === detailItem.id ? "삭제 중" : "삭제"}
+                    </button>
                     <button
                       type="button"
                       className="icon-btn history-detail-close"
