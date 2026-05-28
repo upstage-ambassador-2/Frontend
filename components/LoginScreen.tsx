@@ -190,15 +190,9 @@ export function LoginScreen({ onToast }: Props) {
             <span className="auth-int-icon" title="Google Contacts">
               C
             </span>
-            <span className="auth-int-icon" title="Slack">
-              S
-            </span>
-            <span className="auth-int-icon" title="Notion">
-              N
-            </span>
           </div>
           <span className="auth-brand-foot-txt">
-            Gmail · Slack · Notion과 함께 사용
+            Google OAuth · Gmail · Contacts 기반
           </span>
         </div>
       </div>
@@ -263,7 +257,7 @@ export function LoginScreen({ onToast }: Props) {
             <IconCheck size={13} />
             <span>
               Gmail 읽기·보내기 권한과 Google Contacts 접근을 요청합니다.
-              메일 본문은 작성 시점에만 사용되며 저장되지 않습니다.
+              생성 초안과 히스토리는 앱에서 다시 확인할 수 있도록 저장됩니다.
             </span>
           </div>
 
