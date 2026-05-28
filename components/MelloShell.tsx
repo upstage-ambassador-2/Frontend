@@ -238,7 +238,9 @@ export function MelloShell({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
         const input = document.querySelector<HTMLInputElement>(".side-search input");
         input?.focus();
       }
