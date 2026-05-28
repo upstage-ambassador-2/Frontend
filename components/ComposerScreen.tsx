@@ -371,6 +371,7 @@ export function ComposerScreen({
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
+  const reauthorizingSendRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSeqRef = useRef(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -716,6 +717,8 @@ export function ComposerScreen({
   ]);
 
   const reauthorizeSend = useCallback(async () => {
+    if (reauthorizingSendRef.current) return;
+    reauthorizingSendRef.current = true;
     setReauthorizingSend(true);
     try {
       persistSendRecoveryDraft();
@@ -724,6 +727,7 @@ export function ComposerScreen({
       }`;
       window.location.href = await startGoogleLogin(returnPath || "/compose");
     } catch (error) {
+      reauthorizingSendRef.current = false;
       setReauthorizingSend(false);
       onToast(
         error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
