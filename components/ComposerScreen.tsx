@@ -554,6 +554,9 @@ export function ComposerScreen({
       onToast("받는 사람 이메일이 필요합니다.");
       return;
     }
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    setDraftSaveState("idle");
     sendingRef.current = true;
     setSending(true);
     try {
@@ -585,7 +588,14 @@ export function ComposerScreen({
       sendingRef.current = false;
       setSending(false);
     }
-  }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext]);
+  }, [
+    clearPendingDraftSave,
+    draft,
+    onHistoryUpdated,
+    onToast,
+    persona?.email,
+    replyContext,
+  ]);
 
   const resetDraft = useCallback(async () => {
     if (!draft || !canResetDraft) return;
