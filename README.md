@@ -96,6 +96,7 @@ Leave `DEV_BASIC_AUTH_ENABLED=false` or unset for production and normal local de
 The frontend and mock server follow the FastAPI backend routes:
 
 - `GET /health`
+- `GET /health/ready`
 - `POST /auth/google/start`
 - `GET /auth/google/callback`
 - `POST /auth/logout`

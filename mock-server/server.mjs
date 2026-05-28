@@ -801,6 +801,11 @@ async function handler(req, res) {
       return;
     }
 
+    if (req.method === "GET" && path === "/health/ready") {
+      sendJson(res, 200, { status: "ok", database: "ok" }, headers);
+      return;
+    }
+
     if (req.method === "POST" && path === "/auth/google/start") {
       const payload = await readBody(req);
       const origin = req.headers.origin || FRONTEND_URL;
