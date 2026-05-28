@@ -1626,18 +1626,18 @@ export function SettingsScreen({
           />
           <Integration
             title="Slack"
-            desc="DM 톤 맞춰 전송"
+            desc="지원 예정 통합"
             statusLabel="지원 예정"
             statusTone="gray"
-            actionLabel="연결"
+            actionLabel="안내"
             onClick={() => void planned("slack")}
           />
           <Integration
             title="Notion"
-            desc="작성 결과를 페이지로 저장"
+            desc="지원 예정 통합"
             statusLabel="지원 예정"
             statusTone="gray"
-            actionLabel="연결"
+            actionLabel="안내"
             onClick={() => void planned("notion")}
           />
         </div>
