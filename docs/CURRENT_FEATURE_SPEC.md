@@ -92,6 +92,7 @@ Google Contacts 권한을 사용해 연락처를 persona 후보로 가져온다.
 ### 기능 상세 동작
 - People 화면에서 `Contacts에서 가져오기` 버튼을 누른다.
 - 프론트엔드는 `POST /personas/import-contacts`를 호출한다.
+- 연락처 import 요청 중에는 버튼을 비활성화해 같은 요청이 중복 실행되지 않게 한다.
 - 백엔드는 Google People API에서 연락처를 가져온다.
 - 기존 persona와 이메일이 같거나 공백 정규화 후 이름이 같은 항목은 `skipped`로 처리한다.
 - 같은 import batch 안에서 먼저 생성된 이메일/이름과 중복되는 항목도 추가하지 않는다.

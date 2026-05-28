@@ -449,6 +449,7 @@ export function PeopleScreen({
   const [initialDraft, setInitialDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [structuring, setStructuring] = useState(false);
+  const [importingContacts, setImportingContacts] = useState(false);
   const connectedCount = useMemo(
     () => personas.filter((persona) => !!personaEmail(persona)).length,
     [personas],
@@ -551,12 +552,16 @@ export function PeopleScreen({
   };
 
   const importContacts = async () => {
+    if (importingContacts) return;
+    setImportingContacts(true);
     try {
       const result = await api.importContacts();
       onChanged(result.personas);
       onToast(`Contacts에서 ${result.imported}명 가져옴 · ${result.skipped}명 건너뜀`);
     } catch (error) {
       onToast(error instanceof Error ? error.message : "Contacts를 가져오지 못했습니다");
+    } finally {
+      setImportingContacts(false);
     }
   };
 
@@ -567,8 +572,14 @@ export function PeopleScreen({
         desc="자주 보내는 사람의 관계, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
         action={
           <div className="row gap-2 people-actions">
-            <button type="button" className="btn-secondary" onClick={importContacts}>
-              <IconMail size={13} /> Contacts에서 가져오기
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={importContacts}
+              disabled={importingContacts}
+            >
+              <IconMail size={13} />{" "}
+              {importingContacts ? "가져오는 중" : "Contacts에서 가져오기"}
             </button>
             <button
               type="button"
