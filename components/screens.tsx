@@ -41,6 +41,7 @@ import {
   IconRefresh,
   IconSearch,
   IconSend,
+  IconSparkle,
 } from "./icons";
 
 function PageTitle({
@@ -139,15 +140,19 @@ function serializeDraft(draft: PersonaDraft | null) {
 function PersonaDialog({
   draft,
   saving,
+  structuring,
   onChange,
   onCancel,
   onSave,
+  onStructure,
 }: {
   draft: PersonaDraft;
   saving: boolean;
+  structuring: boolean;
   onChange: (draft: PersonaDraft) => void;
   onCancel: () => void;
   onSave: () => void;
+  onStructure: () => void;
 }) {
   const nameRef = useRef<HTMLInputElement>(null);
   const title = draft.id ? "사람 수정" : "사람 추가";
@@ -278,7 +283,18 @@ function PersonaDialog({
               />
             </label>
             <label className="span-2">
-              <span>메모</span>
+              <span className="row between">
+                <span>메모</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={onStructure}
+                  disabled={saving || structuring || !draft.notes.trim()}
+                >
+                  <IconSparkle size={13} />
+                  {structuring ? "정리 중" : "AI 정리"}
+                </button>
+              </span>
               <textarea
                 value={draft.notes}
                 onChange={(event) => onChange({ ...draft, notes: event.target.value })}
@@ -430,6 +446,7 @@ export function PeopleScreen({
   const [draft, setDraft] = useState<PersonaDraft | null>(null);
   const [initialDraft, setInitialDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [structuring, setStructuring] = useState(false);
   const connectedCount = useMemo(
     () => personas.filter((persona) => !!personaEmail(persona)).length,
     [personas],
@@ -492,6 +509,34 @@ export function PeopleScreen({
     }
   };
 
+  const structureDraft = async () => {
+    if (!draft?.notes.trim()) {
+      onToast("정리할 메모를 입력해주세요");
+      return;
+    }
+    setStructuring(true);
+    try {
+      const result = await api.structurePersona(draft.notes);
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              tone: normalizePersonaTone(result.tone),
+              notes: result.notes || current.notes,
+              keywords: result.keywords.join(", "),
+              avoid: result.avoid.join(", "),
+              prefer: result.prefer,
+            }
+          : current,
+      );
+      onToast("페르소나 메모를 정리했습니다");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "페르소나 메모를 정리하지 못했습니다");
+    } finally {
+      setStructuring(false);
+    }
+  };
+
   const remove = async (id: string) => {
     if (!window.confirm("이 페르소나를 삭제할까요?")) return;
     try {
@@ -547,9 +592,11 @@ export function PeopleScreen({
         <PersonaDialog
           draft={draft}
           saving={saving}
+          structuring={structuring}
           onChange={setDraft}
           onCancel={closeDraft}
           onSave={() => void save()}
+          onStructure={() => void structureDraft()}
         />
       )}
 
