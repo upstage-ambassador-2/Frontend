@@ -175,10 +175,12 @@ Gmail에서 최근 받은 메일을 조회하고, 선택한 메일의 원문과 
 - Inbox 화면은 server component에서 `GET /gmail/messages`를 호출해 메일 목록을 렌더링한다.
 - Gmail 권한, 재인증, 네트워크 오류로 목록 조회가 실패하면 오류 상태와 다시 시도 버튼을 표시한다.
 - Gmail 권한 또는 재인증이 필요한 오류에는 Google 재동의 버튼을 표시하고, 완료 후 기존 inbox cursor URL로 돌아오게 한다.
+- Google 재동의 시작 중에는 버튼 문구를 `재동의 중`으로 바꾸고 받은편지함 새로고침, 페이지 크기 변경, 이전/다음 페이지 이동을 잠가 중복 리다이렉트와 경합 이동을 막는다.
 - 페이지 크기와 Gmail `pageToken` 기반 cursor pagination을 지원한다.
 - 메일 항목 클릭 시 `/compose/{personaId}/reply/{messageId}` 또는 `/compose/reply/{messageId}`로 이동한다.
 - sender email이 기존 persona와 매칭되지 않으면 임의의 현재 선택 persona로 진입하지 않고 `/compose/reply/{messageId}`에서 신규 persona 연결을 진행한다.
 - 상세 route는 server side에서 `GET /gmail/messages/{messageId}`를 호출한다.
+- 상세 조회 오류 화면에서도 Google 재동의가 필요한 경우 `재동의 중` 상태를 표시하고 다시 시도/받은편지함 이동 버튼을 잠시 비활성화한다.
 - 상세 응답의 raw body와 reply context를 Compose에 주입한다.
 - sender email이 기존 persona와 매칭되면 해당 persona를 사용한다.
 - 매칭 persona가 없고 본인 이메일이 아니면 클라이언트가 신규 persona 생성을 보조하고 생성된 persona의 reply route로 이동한다.
@@ -210,6 +212,7 @@ Gmail API 직접 발송
 - 실패 시 프론트엔드 toast로 에러를 표시한다.
 - Gmail 권한 또는 재인증이 필요한 발송 실패는 초안을 보존하고 작성 화면 안에 Google 재동의 버튼을 표시한다.
 - 재동의 안내가 표시된 동안 보내기 버튼은 비활성화되어 같은 실패 요청을 반복하지 않는다.
+- 발송 실패 복구용 Google 재동의 버튼은 클릭 즉시 `재동의 중`으로 전환되고 중복 클릭을 무시한다.
 - Google 재동의는 완료 후 사용자가 머물던 작성 URL로 돌아오게 하며, 왕복 전 작성 중이던 subject/body를 세션 단위로 복원한다.
 
 ### 기능 효과

@@ -61,17 +61,34 @@ export function ReplyComposeErrorRoute({
   const retryPath = personaId
     ? `${composeHref(personaId)}/reply/${encodedMessageId}`
     : `/compose/reply/${encodedMessageId}`;
+  const [reauthorizing, setReauthorizing] = useState(false);
+  const reauthorizingRef = useRef(false);
 
   const reauthorizeGoogle = async () => {
+    if (reauthorizingRef.current) return;
+    reauthorizingRef.current = true;
+    setReauthorizing(true);
     try {
       window.location.href = await startGoogleLogin(retryPath);
     } catch (startError) {
+      reauthorizingRef.current = false;
+      setReauthorizing(false);
       mello.showToast(
         startError instanceof Error
           ? startError.message
           : "Google 재동의를 시작하지 못했습니다.",
       );
     }
+  };
+
+  const refreshMessage = () => {
+    if (reauthorizingRef.current) return;
+    router.refresh();
+  };
+
+  const goInbox = () => {
+    if (reauthorizingRef.current) return;
+    router.push("/inbox");
   };
 
   return (
@@ -92,7 +109,8 @@ export function ReplyComposeErrorRoute({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => router.refresh()}
+            onClick={refreshMessage}
+            disabled={reauthorizing}
           >
             <IconRefresh size={13} />
             다시 시도
@@ -102,14 +120,16 @@ export function ReplyComposeErrorRoute({
               type="button"
               className="btn-primary"
               onClick={() => void reauthorizeGoogle()}
+              disabled={reauthorizing}
             >
-              Google 재동의
+              {reauthorizing ? "재동의 중" : "Google 재동의"}
             </button>
           )}
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => router.push("/inbox")}
+            onClick={goInbox}
+            disabled={reauthorizing}
           >
             <IconMail size={13} />
             받은편지함

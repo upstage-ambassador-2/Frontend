@@ -769,6 +769,8 @@ export function InboxScreen({
   const [refreshing, startRefresh] = useTransition();
   const [navigating, startNavigation] = useTransition();
   const [tokenHistory, setTokenHistory] = useState<Record<string, string>>({});
+  const [reauthorizing, setReauthorizing] = useState(false);
+  const reauthorizingRef = useRef(false);
   const currentLimit = normalizeGmailPageSize(initialPage.limit);
   const messages = useMemo(
     () =>
@@ -827,14 +829,20 @@ export function InboxScreen({
   };
 
   const load = () => {
+    if (reauthorizingRef.current) return;
     startRefresh(() => router.refresh());
   };
 
   const reauthorizeGoogle = async () => {
+    if (reauthorizingRef.current) return;
+    reauthorizingRef.current = true;
+    setReauthorizing(true);
     try {
       const returnPath = inboxHref(currentLimit, pageToken);
       window.location.href = await startGoogleLogin(returnPath);
     } catch (error) {
+      reauthorizingRef.current = false;
+      setReauthorizing(false);
       onToast(
         error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
       );
@@ -842,6 +850,7 @@ export function InboxScreen({
   };
 
   const goNext = () => {
+    if (reauthorizingRef.current) return;
     const nextToken = initialPage.nextPageToken;
     if (!nextToken) return;
     rememberPreviousToken(nextToken, pageToken);
@@ -849,6 +858,7 @@ export function InboxScreen({
   };
 
   const goPrevious = () => {
+    if (reauthorizingRef.current) return;
     if (!canGoPrevious) return;
     startNavigation(() =>
       router.push(inboxHref(currentLimit, previousToken || null)),
@@ -856,6 +866,7 @@ export function InboxScreen({
   };
 
   const changePageSize = (value: string) => {
+    if (reauthorizingRef.current) return;
     const nextLimit = normalizeGmailPageSize(value);
     startNavigation(() => router.push(inboxHref(nextLimit, null)));
   };
@@ -864,6 +875,7 @@ export function InboxScreen({
     initialPage.resultSizeEstimate == null
       ? `${messages.length}개 표시`
       : `전체 약 ${initialPage.resultSizeEstimate}개 중 ${messages.length}개 표시`;
+  const actionsDisabled = busy || reauthorizing;
 
   return (
     <div className="page inbox-page" style={{ maxWidth: 1040 }}>
@@ -877,7 +889,7 @@ export function InboxScreen({
               <select
                 value={currentLimit}
                 onChange={(event) => changePageSize(event.target.value)}
-                disabled={busy}
+                disabled={actionsDisabled}
               >
                 {GMAIL_PAGE_SIZE_OPTIONS.map((option) => (
                   <option key={option} value={option}>
@@ -890,7 +902,7 @@ export function InboxScreen({
               type="button"
               className="btn-secondary"
               onClick={() => void load()}
-              disabled={busy}
+              disabled={actionsDisabled}
             >
               {refreshing ? (
                 <span className="result-spinner" aria-hidden />
@@ -913,7 +925,7 @@ export function InboxScreen({
             type="button"
             className="btn-secondary"
             onClick={goPrevious}
-            disabled={!canGoPrevious || busy}
+            disabled={!canGoPrevious || actionsDisabled}
           >
             <IconChevron size={13} style={{ transform: "rotate(180deg)" }} />
             이전
@@ -925,7 +937,7 @@ export function InboxScreen({
             type="button"
             className="btn-secondary"
             onClick={goNext}
-            disabled={!canGoNext || busy}
+            disabled={!canGoNext || actionsDisabled}
           >
             {navigating ? (
               <span className="result-spinner" aria-hidden />
@@ -945,7 +957,7 @@ export function InboxScreen({
                 type="button"
                 className="btn-secondary"
                 onClick={() => void load()}
-                disabled={busy}
+                disabled={actionsDisabled}
               >
                 <IconRefresh size={13} />
                 다시 시도
@@ -955,8 +967,9 @@ export function InboxScreen({
                   type="button"
                   className="btn-primary"
                   onClick={() => void reauthorizeGoogle()}
+                  disabled={actionsDisabled}
                 >
-                  Google 재동의
+                  {reauthorizing ? "재동의 중" : "Google 재동의"}
                 </button>
               )}
             </div>
