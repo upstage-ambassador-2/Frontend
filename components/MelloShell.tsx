@@ -402,6 +402,7 @@ export function MelloShell({
           user={initialMe.user ?? null}
           mobileOpen={mobileDrawerOpen}
           onCloseMobile={closeMobileDrawer}
+          onLogout={() => void handleLogout()}
         />
 
         <main className="main">

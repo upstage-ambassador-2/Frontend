@@ -321,6 +321,10 @@ textarea {
   letter-spacing: 0.03em;
 }
 
+.side-foot-wrap {
+  position: relative;
+  margin: 0 8px 10px;
+}
 .side-foot {
   margin: 0 8px 10px;
   border: 1px solid var(--border);
@@ -329,6 +333,9 @@ textarea {
   padding: 9px 8px;
   display: flex; align-items: center; gap: 10px;
   box-shadow: 0 1px 0 rgba(15,15,15,0.03);
+}
+.side-foot-wrap .side-foot {
+  margin: 0;
 }
 .side-foot .avatar { width: 24px; height: 24px; font-size: 11px; }
 .side-foot .grow { min-width: 0; }
@@ -340,6 +347,47 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.side-account-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.side-account-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 7px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.side-account-menu-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.side-account-menu-item > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.side-account-menu-item small {
+  color: var(--text-4);
+  font-size: 11px;
 }
 
 /* ─── Main ───────────────────────────────────────────────── */
@@ -1554,6 +1602,7 @@ textarea {
   .side-search-results,
   .side-section,
   .side-people,
+  .side-foot-wrap,
   .side-foot {
     display: none;
   }
@@ -2781,6 +2830,7 @@ textarea {
   .mello-shell.route-people .side-search-results,
   .mello-shell.route-people .side-section,
   .mello-shell.route-people .side-people,
+  .mello-shell.route-people .side-foot-wrap,
   .mello-shell.route-people .side-foot {
     display: none;
   }
@@ -2824,6 +2874,7 @@ textarea {
   .mello-shell.route-settings .side-search-results,
   .mello-shell.route-settings .side-section,
   .mello-shell.route-settings .side-people,
+  .mello-shell.route-settings .side-foot-wrap,
   .mello-shell.route-settings .side-foot {
     display: none;
   }
@@ -2881,6 +2932,8 @@ textarea {
   .mello-shell.route-format .side-section,
   .mello-shell.route-history .side-people,
   .mello-shell.route-format .side-people,
+  .mello-shell.route-history .side-foot-wrap,
+  .mello-shell.route-format .side-foot-wrap,
   .mello-shell.route-history .side-foot,
   .mello-shell.route-format .side-foot {
     display: none;
