@@ -1519,6 +1519,19 @@ textarea {
   font-size: 12px;
   margin-left: auto;
 }
+.send-recovery {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--tag-amber-bg);
+  border-radius: var(--r-md);
+  background: var(--tag-amber-bg);
+  color: var(--tag-amber-fg);
+  font-size: 12px;
+}
 
 @media (max-width: 1024px), (max-device-width: 1024px) {
   .mello-shell {
@@ -1779,6 +1792,10 @@ textarea {
     flex: 1 1 100%;
     margin-left: 0;
     text-align: center;
+  }
+  .send-recovery {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .toast-wrap {
