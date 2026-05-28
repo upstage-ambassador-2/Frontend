@@ -31,7 +31,7 @@ import {
 } from "@/lib/routes";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { ToastStack, type ToastItem } from "./Toast";
+import { ToastStack, enqueueToast, type ToastItem } from "./Toast";
 
 const TONE_PRESETS: Record<string, number> = {
   lead: 25,
@@ -158,12 +158,7 @@ export function MelloShell({
   );
 
   const showToast = useCallback((msg: string) => {
-    const id = Date.now() + Math.random();
-    setToasts((arr) => [...arr, { id, msg }]);
-    setTimeout(
-      () => setToasts((arr) => arr.filter((x) => x.id !== id)),
-      1800,
-    );
+    enqueueToast(setToasts, msg);
   }, []);
 
   useEffect(() => {
