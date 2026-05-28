@@ -442,6 +442,16 @@ function historyOut(item) {
   };
 }
 
+function historyMatchesEmail(item, email) {
+  const candidates = [
+    item.personaEmail,
+    item.counterpartyEmail,
+    item.replyFromAddr,
+    item.targetEmail,
+  ];
+  return candidates.some((candidate) => normalizedEmail(candidate) === email);
+}
+
 function senderMetadata(message) {
   const senderEmail = normalizedEmail(message.fromAddr || message.from);
   const persona = senderEmail
@@ -1060,7 +1070,16 @@ async function handler(req, res) {
     }
 
     if (req.method === "GET" && path === "/history") {
-      sendJson(res, 200, history.map(historyOut), headers);
+      const personaId = url.searchParams.get("personaId") || url.searchParams.get("persona_id");
+      const email = normalizedEmail(
+        url.searchParams.get("personaEmail") || url.searchParams.get("email") || "",
+      );
+      const filtered = history.filter((item) => {
+        if (personaId && item.personaId !== personaId) return false;
+        if (email && !historyMatchesEmail(item, email)) return false;
+        return true;
+      });
+      sendJson(res, 200, filtered.map(historyOut), headers);
       return;
     }
 

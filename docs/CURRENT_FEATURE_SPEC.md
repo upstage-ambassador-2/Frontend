@@ -270,6 +270,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
 - mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
 - mock persona 삭제는 백엔드와 동일하게 연결된 history의 persona relation을 해제하고 대상 스냅샷을 유지한다.
+- mock `GET /history`는 백엔드와 동일하게 `personaId`, `personaEmail`, `email` 필터를 지원하며 스냅샷 이메일도 매칭한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
 - mock server는 `GET /health`와 `GET /health/ready`를 제공해 프론트 rewrite와 운영 readiness 계약을 로컬에서 확인할 수 있다.
 
