@@ -890,7 +890,7 @@ async function handler(req, res) {
         ? personas.find((item) => normalizedEmail(item.email) === email)
         : null;
       if (existing) {
-        sendJson(res, 200, existing, headers);
+        sendJson(res, 409, { detail: "이미 등록된 이메일입니다." }, headers);
         return;
       }
       const persona = applyPersonaFields({ id: `p-${randomUUID()}` }, payload);
@@ -940,6 +940,16 @@ async function handler(req, res) {
       const existing = personas.find((item) => item.id === id);
       if (!existing) {
         sendJson(res, 404, { detail: "페르소나를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      const email = normalizedEmail(payload.email);
+      const duplicate = email
+        ? personas.find(
+            (item) => item.id !== id && normalizedEmail(item.email) === email,
+          )
+        : null;
+      if (duplicate) {
+        sendJson(res, 409, { detail: "이미 등록된 이메일입니다." }, headers);
         return;
       }
       const updated = applyPersonaFields(existing, payload);
