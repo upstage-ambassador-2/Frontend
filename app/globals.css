@@ -2329,6 +2329,12 @@ textarea {
   color: var(--text-3);
   font-size: 13px;
 }
+.state-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
 .error-text { color: var(--tag-rose-fg); }
 
 @media (max-width: 720px) {

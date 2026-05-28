@@ -13,7 +13,7 @@ type Props = {
 };
 
 export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
-  const { personas } = useMello();
+  const { personas, showToast } = useMello();
 
   const personaMatchForMessage = (message: GmailMessage) => {
     const senderEmail = normalizeEmailAddress(
@@ -47,6 +47,7 @@ export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
       pageToken={pageToken}
       replyHrefForMessage={replyHrefForMessage}
       personaMatchForMessage={personaMatchForMessage}
+      onToast={showToast}
     />
   );
 }

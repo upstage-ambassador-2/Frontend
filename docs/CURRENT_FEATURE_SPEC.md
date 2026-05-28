@@ -169,6 +169,8 @@ Gmail에서 최근 받은 메일을 조회하고, 선택한 메일의 원문과 
 
 ### 기능 상세 동작
 - Inbox 화면은 server component에서 `GET /gmail/messages`를 호출해 메일 목록을 렌더링한다.
+- Gmail 권한, 재인증, 네트워크 오류로 목록 조회가 실패하면 오류 상태와 다시 시도 버튼을 표시한다.
+- Gmail 권한 또는 재인증이 필요한 오류에는 Google 재동의 버튼을 표시하고, 완료 후 기존 inbox cursor URL로 돌아오게 한다.
 - 페이지 크기와 Gmail `pageToken` 기반 cursor pagination을 지원한다.
 - 메일 항목 클릭 시 `/compose/{personaId}/reply/{messageId}` 또는 `/compose/reply/{messageId}`로 이동한다.
 - sender email이 기존 persona와 매칭되지 않으면 임의의 현재 선택 persona로 진입하지 않고 `/compose/reply/{messageId}`에서 신규 persona 연결을 진행한다.

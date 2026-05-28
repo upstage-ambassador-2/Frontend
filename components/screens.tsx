@@ -380,6 +380,10 @@ function inboxSenderFromMessage(message: GmailMessage) {
   };
 }
 
+function needsGoogleReauth(error: string | null | undefined): boolean {
+  return !!error && /권한|재인증|다시 로그인|Google 연결/.test(error);
+}
+
 const inboxMonthNumbers: Record<string, string> = {
   jan: "01",
   feb: "02",
@@ -709,6 +713,7 @@ export function InboxScreen({
   pageToken,
   replyHrefForMessage,
   personaMatchForMessage,
+  onToast,
 }: {
   initialPage: PaginatedGmailMessages;
   initialError: string | null;
@@ -718,6 +723,7 @@ export function InboxScreen({
     matched: Persona | undefined;
     senderEmail: string;
   };
+  onToast: (message: string) => void;
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -782,6 +788,17 @@ export function InboxScreen({
 
   const load = () => {
     startRefresh(() => router.refresh());
+  };
+
+  const reauthorizeGoogle = async () => {
+    try {
+      const returnPath = inboxHref(currentLimit, pageToken);
+      window.location.href = await startGoogleLogin(returnPath);
+    } catch (error) {
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
   };
 
   const goNext = () => {
@@ -880,7 +897,31 @@ export function InboxScreen({
       </div>
 
       <div className="card inbox-card">
-        {initialError && <div className="state-row error-text">{initialError}</div>}
+        {initialError && (
+          <div className="state-row state-stack error-text" role="alert">
+            <div>{initialError}</div>
+            <div className="row gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void load()}
+                disabled={busy}
+              >
+                <IconRefresh size={13} />
+                다시 시도
+              </button>
+              {needsGoogleReauth(initialError) && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => void reauthorizeGoogle()}
+                >
+                  Google 재동의
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {!initialError && messages.length === 0 && (
           <div className="state-row">
             {pageToken
