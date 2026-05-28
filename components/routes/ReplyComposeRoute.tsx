@@ -218,6 +218,8 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
     setReplyContext(null);
     if (mello.selectedId) {
       router.push(composeHref(mello.selectedId));
+    } else {
+      router.push("/compose");
     }
   };
 
