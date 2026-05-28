@@ -264,6 +264,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - `mock-server/server.mjs`가 백엔드 계약 경로를 흉내낸다.
 - `MELLO_API_URL`을 mock server로 지정하면 Next.js가 same-origin API contract를 mock으로 rewrite한다.
 - mock AI generate는 백엔드와 동일하게 생성 완료 직후 서명 보강과 persona 금지 표현 차단 계약을 재현하며, 차단 시 history를 생성하지 않는다.
+- mock Persona create/update는 백엔드와 동일하게 중복 이메일을 409로 차단한다.
 - mock Contacts import는 이메일/정규화 이름 중복 skip 계약을 재현한다.
 - mock Gmail 목록/상세와 reply context는 `senderEmail`, `senderName`, `personaId`, `persona` 메타데이터를 포함한다.
 - mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
