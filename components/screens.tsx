@@ -1249,6 +1249,15 @@ function FormatSlot({
   );
 }
 
+const FORMAT_DIRTY_KEYS: Array<keyof MailFormat> = [
+  "signature",
+  "greeting",
+  "closing",
+  "structure",
+  "bulletStyle",
+  "language",
+];
+
 export function FormatScreen({
   format,
   loadError,
@@ -1260,36 +1269,100 @@ export function FormatScreen({
   onChanged: (format: MailFormat) => void;
   onToast: (message: string) => void;
 }) {
+  const router = useRouter();
   const [draft, setDraft] = useState(format);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const formatDirty = useMemo(
+    () =>
+      FORMAT_DIRTY_KEYS.some(
+        (key) => String(draft[key] || "") !== String(format[key] || ""),
+      ),
+    [draft, format],
+  );
 
   useEffect(() => {
-    setDraft(format);
-  }, [format]);
+    if (!editing) setDraft(format);
+  }, [editing, format]);
+
+  useEffect(() => {
+    if (!editing || !formatDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [editing, formatDirty]);
+
+  useEffect(() => {
+    if (!editing || !formatDirty) return;
+    const onClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      if (!(event.target instanceof Element)) return;
+      const anchor = event.target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      const nextUrl = new URL(anchor.href);
+      if (nextUrl.origin !== window.location.origin) return;
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+      if (currentPath === nextPath) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!window.confirm("저장하지 않은 메일 형식 변경을 버릴까요?")) return;
+      setEditing(false);
+      setDraft(format);
+      router.push(nextPath);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [editing, format, formatDirty, router]);
 
   const cancel = () => {
+    if (saving) return;
+    if (formatDirty && !window.confirm("저장하지 않은 변경을 버릴까요?")) return;
     setDraft(format);
     setEditing(false);
   };
 
   const save = async () => {
+    if (!formatDirty || saving) return;
+    setSaving(true);
     try {
       const saved = await api.updateFormat(draft);
+      setDraft(saved);
       onChanged(saved);
       setEditing(false);
       onToast("메일 형식을 저장했습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "메일 형식을 저장하지 못했습니다");
+    } finally {
+      setSaving(false);
     }
   };
 
   const renderEditActions = (placement: "top" | "bottom") => (
     <div className={`format-actions format-actions-${placement}`}>
-      <button type="button" className="btn-secondary" onClick={cancel}>
+      <button type="button" className="btn-secondary" onClick={cancel} disabled={saving}>
         취소
       </button>
-      <button type="button" className="btn-primary" onClick={save}>
-        저장
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={save}
+        disabled={saving || !formatDirty}
+      >
+        {saving ? "저장 중" : "저장"}
       </button>
     </div>
   );
