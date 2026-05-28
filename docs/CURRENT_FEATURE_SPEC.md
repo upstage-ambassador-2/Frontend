@@ -265,6 +265,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Contacts import는 이메일/정규화 이름 중복 skip 계약을 재현한다.
 - mock Gmail 목록/상세와 reply context는 `senderEmail`, `senderName`, `personaId`, `persona` 메타데이터를 포함한다.
 - mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
+- mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
 
 ### 기능 효과

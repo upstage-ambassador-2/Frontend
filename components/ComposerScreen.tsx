@@ -529,7 +529,14 @@ export function ComposerScreen({
       if (result.history) {
         onHistoryUpdated(result.history);
         setDraft((current) =>
-          current ? { ...current, history: result.history } : current,
+          current
+            ? {
+                ...current,
+                subject: result.history?.subject ?? current.subject,
+                body: result.history?.body ?? current.body,
+                history: result.history,
+              }
+            : current,
         );
       }
       onToast("Gmail로 발송되었습니다");
