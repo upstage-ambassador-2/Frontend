@@ -950,6 +950,24 @@ async function handler(req, res) {
 
     if (personaMatch && req.method === "DELETE") {
       const id = personaMatch[1];
+      const persona = personas.find((item) => item.id === id);
+      if (!persona) {
+        sendJson(res, 404, { detail: "페르소나를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      history = history.map((item) => {
+        if (item.personaId !== id) return item;
+        return {
+          ...item,
+          personaId: null,
+          targetName: item.targetName || persona.name,
+          targetEmail: item.targetEmail || persona.email || "",
+          personaName: item.personaName || persona.name,
+          personaEmail: item.personaEmail || persona.email || "",
+          counterpartyName: item.counterpartyName || persona.name,
+          counterpartyEmail: item.counterpartyEmail || persona.email || "",
+        };
+      });
       personas = personas.filter((item) => item.id !== id);
       sendNoContent(res, headers);
       return;
@@ -1218,11 +1236,31 @@ async function handler(req, res) {
       }
       const sentId = `sent-${randomUUID()}`;
       if (item) {
+        const sendPersona = personaForSend(item, to);
+        const normalizedTo = normalizedEmail(to);
         item.subject = guardedDraft.subject;
         item.body = guardedDraft.body;
         item.status = "sent";
         item.sentAt = nowIso();
         item.gmailMessageId = sentId;
+        if (!item.personaId && sendPersona) item.personaId = sendPersona.id;
+        if (sendPersona) {
+          item.targetName = sendPersona.name;
+          item.targetEmail = sendPersona.email || normalizedTo || "";
+          item.personaName = sendPersona.name;
+          item.personaEmail = sendPersona.email || "";
+          item.counterpartyName = sendPersona.name;
+          item.counterpartyEmail = sendPersona.email || normalizedTo || "";
+        } else {
+          item.targetName =
+            item.targetName ||
+            (replyContext ? senderNameFromAddress(replyContext.fromAddr) : null);
+          item.targetEmail = item.targetEmail || normalizedTo || "";
+          item.counterpartyName =
+            item.counterpartyName ||
+            (replyContext ? senderNameFromAddress(replyContext.fromAddr) : null);
+          item.counterpartyEmail = item.counterpartyEmail || normalizedTo || "";
+        }
       }
       sendJson(
         res,
