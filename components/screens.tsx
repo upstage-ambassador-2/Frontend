@@ -612,6 +612,7 @@ export function PeopleScreen({
         {personas.map((persona) => {
           const email = personaEmail(persona);
           const hasEmail = !!email;
+          const profileSummary = (persona.notes || persona.prefer || "").trim();
           return (
             <div key={persona.id} className="person-card">
               <button
@@ -642,6 +643,11 @@ export function PeopleScreen({
                     </span>
                   ))}
                 </div>
+                {profileSummary && (
+                  <div className="person-card-summary">
+                    {normalizePersonaTone(persona.tone)} · {profileSummary}
+                  </div>
+                )}
                 <div className="person-card-foot">
                   <span className="person-card-last">
                     <IconHistory size={12} /> 마지막 작성 · {persona.lastUsed}
