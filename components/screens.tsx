@@ -1705,6 +1705,48 @@ function Integration({
   );
 }
 
+type NotificationPreferenceKey = "personaRecommendation" | "monthlyReport";
+
+type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  personaRecommendation: true,
+  monthlyReport: false,
+};
+
+const NOTIFICATION_PREFERENCE_STORAGE_KEY = "mello:settings:notifications";
+
+function notificationTag(enabled: boolean) {
+  return (
+    <span className={`tag ${enabled ? "green" : "gray"}`}>
+      {enabled ? "켜짐" : "꺼짐"}
+    </span>
+  );
+}
+
+function NotificationToggle({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={"settings-toggle" + (checked ? " is-on" : "")}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onToggle}
+    >
+      <span className="settings-toggle-thumb" />
+    </button>
+  );
+}
+
 export function SettingsScreen({
   me,
   onLogout,
@@ -1715,7 +1757,43 @@ export function SettingsScreen({
   onToast: (message: string) => void;
 }) {
   const [busyIntegration, setBusyIntegration] = useState<string | null>(null);
+  const [notificationPrefs, setNotificationPrefs] =
+    useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const busyIntegrationRef = useRef<string | null>(null);
+  const userName = me?.user.name || "로그인 사용자";
+  const userEmail = me?.user.email || "mello@example.com";
+  const notificationPreferenceStorageKey = useMemo(() => {
+    const normalizedEmail = normalizeEmailAddress(me?.user.email);
+    return normalizedEmail
+      ? `${NOTIFICATION_PREFERENCE_STORAGE_KEY}:${normalizedEmail}`
+      : NOTIFICATION_PREFERENCE_STORAGE_KEY;
+  }, [me?.user.email]);
+
+  useEffect(() => {
+    let next = DEFAULT_NOTIFICATION_PREFERENCES;
+    try {
+      const saved = window.localStorage.getItem(
+        notificationPreferenceStorageKey,
+      );
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<NotificationPreferences>;
+        next = {
+          ...DEFAULT_NOTIFICATION_PREFERENCES,
+          personaRecommendation:
+            typeof parsed.personaRecommendation === "boolean"
+              ? parsed.personaRecommendation
+              : DEFAULT_NOTIFICATION_PREFERENCES.personaRecommendation,
+          monthlyReport:
+            typeof parsed.monthlyReport === "boolean"
+              ? parsed.monthlyReport
+              : DEFAULT_NOTIFICATION_PREFERENCES.monthlyReport,
+        };
+      }
+    } catch {
+      next = DEFAULT_NOTIFICATION_PREFERENCES;
+    }
+    setNotificationPrefs(next);
+  }, [notificationPreferenceStorageKey]);
 
   const setIntegrationBusy = (value: string | null) => {
     busyIntegrationRef.current = value;
@@ -1746,10 +1824,21 @@ export function SettingsScreen({
       );
     }
   };
-  const userName = me?.user.name || "로그인 사용자";
-  const userEmail = me?.user.email || "mello@example.com";
   const gmailConnected = !!me?.integrations.gmail;
   const contactsConnected = !!me?.integrations.contacts;
+  const toggleNotification = (key: NotificationPreferenceKey, label: string) => {
+    const next = { ...notificationPrefs, [key]: !notificationPrefs[key] };
+    setNotificationPrefs(next);
+    try {
+      window.localStorage.setItem(
+        notificationPreferenceStorageKey,
+        JSON.stringify(next),
+      );
+    } catch {
+      // Local notification preferences are a client-side convenience only.
+    }
+    onToast(`${label}을 ${next[key] ? "켰습니다" : "껐습니다"}`);
+  };
 
   return (
     <div className="page settings-page">
@@ -1852,8 +1941,37 @@ export function SettingsScreen({
           <div className="card-h-title">알림</div>
         </div>
         <div className="card-b">
-          <Row k="새 페르소나 추천 알림" v={<span className="tag green">켜짐</span>} />
-          <Row k="월간 사용 리포트" v={<span className="tag gray">꺼짐</span>} />
+          <Row
+            k="새 페르소나 추천 알림"
+            v={notificationTag(notificationPrefs.personaRecommendation)}
+            sub="새 연락처나 답장 발신자 기준으로 추천이 생기면 알려줍니다."
+            action={
+              <NotificationToggle
+                label="새 페르소나 추천 알림"
+                checked={notificationPrefs.personaRecommendation}
+                onToggle={() =>
+                  toggleNotification(
+                    "personaRecommendation",
+                    "새 페르소나 추천 알림",
+                  )
+                }
+              />
+            }
+          />
+          <Row
+            k="월간 사용 리포트"
+            v={notificationTag(notificationPrefs.monthlyReport)}
+            sub="이번 달 생성/발송 요약을 월간 리포트로 받습니다."
+            action={
+              <NotificationToggle
+                label="월간 사용 리포트"
+                checked={notificationPrefs.monthlyReport}
+                onToggle={() =>
+                  toggleNotification("monthlyReport", "월간 사용 리포트")
+                }
+              />
+            }
+          />
         </div>
       </div>
     </div>

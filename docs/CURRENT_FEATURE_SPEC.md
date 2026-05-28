@@ -50,12 +50,16 @@ Gmail 받은편지함, Gmail 발송, Contacts import, Settings 통합 상태
 - Settings의 통합 버튼은 안내 요청 또는 Google 재동의 시작 중 중복 클릭을 막고 진행 중 문구를 표시한다.
 - Sidebar footer의 계정 메뉴는 더보기 버튼으로 열고, 계정 설정 이동과 로그아웃 액션을 제공한다.
 - 계정 메뉴는 바깥 클릭 또는 `Escape`로 닫히며 로그아웃은 기존 `POST /auth/logout` 흐름을 사용한다.
+- Settings의 알림 카드는 새 페르소나 추천 알림과 월간 사용 리포트 선호도를 switch 형태로 제공한다.
+- 알림 선호도는 토글 즉시 `켜짐`/`꺼짐` tag, switch 상태, toast 피드백에 반영된다.
+- 알림 선호도는 사용자 이메일별 브라우저 `localStorage`에 저장되어 같은 브라우저 세션의 재방문/새로고침 후에도 유지된다.
+- 알림 선호도는 현재 클라이언트 편의 설정이며, 실제 서버 알림 발송이나 quota enforcement와 연결하지 않는다.
 
 ### 기능 효과
-사용자가 현재 계정과 사용 가능한 외부 연동 범위를 확인할 수 있다.
+사용자가 현재 계정, 사용 가능한 외부 연동 범위, 로컬 알림 선호도를 확인하고 즉시 조정할 수 있다.
 
 ### 연계 기능
-Google OAuth, Settings, Gmail, Contacts
+Google OAuth, Settings, Gmail, Contacts, Toast
 
 ## 3. People/Persona 관리
 
