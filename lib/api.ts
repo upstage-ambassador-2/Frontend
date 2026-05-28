@@ -120,6 +120,7 @@ export type PersonaPayload = {
   notes: string;
   email?: string | null;
   role?: string;
+  mbti?: string;
   keywords?: string[];
   avoid?: string[];
   prefer?: string;
@@ -131,6 +132,13 @@ export type PersonaStructureResult = {
   avoid: string[];
   prefer: string;
   notes: string;
+};
+
+export type PersonaMbtiInferResult = {
+  mbti: string;
+  confidence: "low" | "medium" | "high";
+  rationale: string;
+  sourceUrl: string;
 };
 
 export type SendPayload = {
@@ -304,6 +312,11 @@ export const api = {
   },
   structurePersona: (text: string) =>
     apiJson<PersonaStructureResult>("/personas/structure", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  inferPersonaMbti: (text: string) =>
+    apiJson<PersonaMbtiInferResult>("/personas/infer-mbti", {
       method: "POST",
       body: JSON.stringify({ text }),
     }),

@@ -23,13 +23,22 @@ import type { User } from "@/lib/api";
 type NavItemProps = {
   icon: ReactNode;
   label: string;
+  desc?: string;
   active: boolean;
   href: string;
   count?: ReactNode;
   onNavigate?: () => void;
 };
 
-function NavItem({ icon, label, active, href, count, onNavigate }: NavItemProps) {
+function NavItem({
+  icon,
+  label,
+  desc,
+  active,
+  href,
+  count,
+  onNavigate,
+}: NavItemProps) {
   return (
     <Link
       href={href}
@@ -37,7 +46,10 @@ function NavItem({ icon, label, active, href, count, onNavigate }: NavItemProps)
       onClick={onNavigate}
     >
       <span className="side-item-icon">{icon}</span>
-      <span>{label}</span>
+      <span className="side-item-copy">
+        <span className="side-item-label">{label}</span>
+        {desc && <span className="side-item-desc">{desc}</span>}
+      </span>
       {count != null && <span className="side-item-count">{count}</span>}
     </Link>
   );
@@ -262,14 +274,15 @@ export function Sidebar({
         <NavItem
           icon={<IconCompose size={14} />}
           label="작성"
+          desc="새 메일 초안"
           active={route === "compose"}
           href={hrefForRoute("compose")}
-          count="⌘N"
           onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconMail size={14} />}
           label="받은편지함"
+          desc="Gmail 답장 시작"
           active={route === "inbox"}
           href={hrefForRoute("inbox")}
           onNavigate={onCloseMobile}
@@ -277,6 +290,7 @@ export function Sidebar({
         <NavItem
           icon={<IconPeople size={14} />}
           label="사람"
+          desc="수신자 성향 관리"
           active={route === "people"}
           href={hrefForRoute("people")}
           count={personas.length}
@@ -285,6 +299,7 @@ export function Sidebar({
         <NavItem
           icon={<IconHistory size={14} />}
           label="히스토리"
+          desc="초안·발송 기록"
           active={route === "history"}
           href={hrefForRoute("history")}
           count={historyCount}
@@ -293,6 +308,7 @@ export function Sidebar({
         <NavItem
           icon={<IconFormat size={14} />}
           label="내 메일 형식"
+          desc="인사말·서명"
           active={route === "format"}
           href={hrefForRoute("format")}
           onNavigate={onCloseMobile}
@@ -300,6 +316,7 @@ export function Sidebar({
         <NavItem
           icon={<IconSettings size={14} />}
           label="설정"
+          desc="계정·연동"
           active={route === "settings"}
           href={hrefForRoute("settings")}
           onNavigate={onCloseMobile}
