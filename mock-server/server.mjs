@@ -548,6 +548,58 @@ function buildDraft(payload) {
   };
 }
 
+function normalizeTextForMatch(value = "") {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function ensureSignature(body = "") {
+  const signature = String(mailFormat.signature || "").trim();
+  const draftBody = String(body || "").trim();
+  if (!signature) return draftBody;
+  if (normalizeTextForMatch(draftBody).includes(normalizeTextForMatch(signature))) {
+    return draftBody;
+  }
+  return `${draftBody}\n\n${signature}`;
+}
+
+function forbiddenTermsInDraft(persona, subject = "", body = "") {
+  if (!persona?.avoid?.length) return [];
+  const haystack = normalizeTextForMatch(`${subject}\n${body}`);
+  return persona.avoid.filter((term) => {
+    const normalized = normalizeTextForMatch(term);
+    return normalized && haystack.includes(normalized);
+  });
+}
+
+function personaForSend(item, to) {
+  if (item?.personaId) {
+    const linked = personas.find((persona) => persona.id === item.personaId);
+    if (linked) return linked;
+  }
+  const toEmail = normalizedEmail(to);
+  if (!toEmail) return null;
+  return personas.find((persona) => normalizedEmail(persona.email) === toEmail) || null;
+}
+
+function applySendGuardrails({ item, to, subject, body }) {
+  const persona = personaForSend(item, to);
+  const guardedBody = ensureSignature(body);
+  const forbiddenTerms = forbiddenTermsInDraft(persona, subject, guardedBody);
+  if (forbiddenTerms.length) {
+    return {
+      ok: false,
+      detail: `발송하려는 내용에 피해야 할 표현이 포함되었습니다: ${forbiddenTerms
+        .slice(0, 3)
+        .join(", ")}. 수정 후 다시 보내주세요.`,
+    };
+  }
+  return {
+    ok: true,
+    subject: String(subject || "").trim(),
+    body: guardedBody,
+  };
+}
+
 async function streamDraft(req, res, payload) {
   const personaId = payload.personaId || payload.persona_id || null;
   let replyContextId = payload.replyContextId || payload.reply_context_id || null;
@@ -1108,10 +1160,20 @@ async function handler(req, res) {
         );
         return;
       }
+      const guardedDraft = applySendGuardrails({
+        item,
+        to,
+        subject: payload.subject,
+        body: payload.body,
+      });
+      if (!guardedDraft.ok) {
+        sendJson(res, 422, { detail: guardedDraft.detail }, headers);
+        return;
+      }
       const sentId = `sent-${randomUUID()}`;
       if (item) {
-        item.subject = payload.subject;
-        item.body = payload.body;
+        item.subject = guardedDraft.subject;
+        item.body = guardedDraft.body;
         item.status = "sent";
         item.sentAt = nowIso();
         item.gmailMessageId = sentId;
