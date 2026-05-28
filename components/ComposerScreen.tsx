@@ -5,6 +5,7 @@ import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import {
   api,
   generateDraft,
+  startGoogleLogin,
   toFiveStepScale,
   type ReplyContext,
 } from "@/lib/api";
@@ -260,6 +261,64 @@ type DraftState = {
   history: HistoryItem | null;
 };
 
+const SEND_RECOVERY_DRAFT_KEY = "mello:send-recovery-draft";
+const SEND_RECOVERY_DRAFT_TTL_MS = 30 * 60 * 1000;
+
+type SendRecoveryDraftSnapshot = DraftState & {
+  path: string;
+  personaId: string;
+  replyContextId: string | null;
+  savedAt: number;
+};
+
+function needsGoogleReauth(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /권한|재인증|다시 로그인|Google 연결/.test(error.message);
+}
+
+function isHistoryItem(value: unknown): value is HistoryItem {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+function readSendRecoveryDraft(): SendRecoveryDraftSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SEND_RECOVERY_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SendRecoveryDraftSnapshot>;
+    if (
+      typeof parsed.path !== "string" ||
+      typeof parsed.personaId !== "string" ||
+      typeof parsed.savedAt !== "number" ||
+      Date.now() - parsed.savedAt > SEND_RECOVERY_DRAFT_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(SEND_RECOVERY_DRAFT_KEY);
+      return null;
+    }
+    return {
+      path: parsed.path,
+      personaId: parsed.personaId,
+      replyContextId: parsed.replyContextId || null,
+      subject: typeof parsed.subject === "string" ? parsed.subject : "",
+      body: typeof parsed.body === "string" ? parsed.body : "",
+      history: isHistoryItem(parsed.history) ? parsed.history : null,
+      savedAt: parsed.savedAt,
+    };
+  } catch {
+    window.sessionStorage.removeItem(SEND_RECOVERY_DRAFT_KEY);
+    return null;
+  }
+}
+
+function clearSendRecoveryDraft() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(SEND_RECOVERY_DRAFT_KEY);
+}
+
 type Props = {
   personas: Persona[];
   format: MailFormat;
@@ -302,6 +361,10 @@ export function ComposerScreen({
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reauthorizingSend, setReauthorizingSend] = useState(false);
+  const [sendRecoveryError, setSendRecoveryError] = useState<string | null>(
+    null,
+  );
   const [formatExpanded, setFormatExpanded] = useState(false);
   const [draftEditedSinceGenerate, setDraftEditedSinceGenerate] =
     useState(false);
@@ -335,6 +398,7 @@ export function ComposerScreen({
     !!draft?.body.trim() &&
     !generating &&
     !sending &&
+    !sendRecoveryError &&
     !draftAlreadySent &&
     (!!replyContext || !!persona?.email);
   const canEditDraft =
@@ -352,6 +416,52 @@ export function ComposerScreen({
   }, []);
 
   useEffect(() => clearPendingDraftSave, [clearPendingDraftSave]);
+
+  useEffect(() => {
+    const snapshot = readSendRecoveryDraft();
+    if (!snapshot) return;
+    const currentPath = `${window.location.pathname}${
+      window.location.search || ""
+    }`;
+    if (
+      snapshot.path !== currentPath ||
+      snapshot.personaId !== selectedId ||
+      snapshot.replyContextId !== (replyContext?.id || null)
+    ) {
+      return;
+    }
+    if (!snapshot.subject.trim() && !snapshot.body.trim()) {
+      clearSendRecoveryDraft();
+      return;
+    }
+    setDraft({
+      subject: snapshot.subject,
+      body: snapshot.body,
+      history: snapshot.history,
+    });
+    setDraftEditedSinceGenerate(true);
+    setDraftSaveState(snapshot.history?.status === "draft" ? "saved" : "idle");
+    setSendRecoveryError(null);
+    clearSendRecoveryDraft();
+    onToast("재동의 전 작성하던 초안을 복원했습니다.");
+  }, [onToast, replyContext?.id, selectedId]);
+
+  const persistSendRecoveryDraft = useCallback(() => {
+    if (!draft) return;
+    const snapshot: SendRecoveryDraftSnapshot = {
+      path: `${window.location.pathname}${window.location.search || ""}`,
+      personaId: selectedId,
+      replyContextId: replyContext?.id || null,
+      subject: draft.subject,
+      body: draft.body,
+      history: draft.history,
+      savedAt: Date.now(),
+    };
+    window.sessionStorage.setItem(
+      SEND_RECOVERY_DRAFT_KEY,
+      JSON.stringify(snapshot),
+    );
+  }, [draft, replyContext?.id, selectedId]);
 
   const applyDraftHistory = useCallback(
     (history: HistoryItem) => {
@@ -448,6 +558,7 @@ export function ComposerScreen({
     clearPendingDraftSave();
     draftSaveSeqRef.current += 1;
     setDraftSaveState("idle");
+    setSendRecoveryError(null);
     const previousDraft = draft;
     setDraftEditedSinceGenerate(false);
     let receivedDelta = false;
@@ -546,6 +657,7 @@ export function ComposerScreen({
     if (!draft?.subject.trim() || !draft?.body.trim() || sendingRef.current) {
       return;
     }
+    setSendRecoveryError(null);
     if (draft.history?.status === "sent") {
       onToast("이미 발송된 초안입니다.");
       return;
@@ -581,9 +693,15 @@ export function ComposerScreen({
         );
       }
       setDraftEditedSinceGenerate(false);
+      setSendRecoveryError(null);
+      clearSendRecoveryDraft();
       onToast("Gmail로 발송되었습니다");
     } catch (error) {
-      onToast(error instanceof Error ? error.message : "메일 발송에 실패했습니다.");
+      const message = error instanceof Error ? error.message : "메일 발송에 실패했습니다.";
+      if (needsGoogleReauth(error)) {
+        setSendRecoveryError(message);
+      }
+      onToast(message);
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -596,6 +714,22 @@ export function ComposerScreen({
     persona?.email,
     replyContext,
   ]);
+
+  const reauthorizeSend = useCallback(async () => {
+    setReauthorizingSend(true);
+    try {
+      persistSendRecoveryDraft();
+      const returnPath = `${window.location.pathname}${
+        window.location.search || ""
+      }`;
+      window.location.href = await startGoogleLogin(returnPath || "/compose");
+    } catch (error) {
+      setReauthorizingSend(false);
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
+  }, [onToast, persistSendRecoveryDraft]);
 
   const resetDraft = useCallback(async () => {
     if (!draft || !canResetDraft) return;
@@ -864,6 +998,20 @@ export function ComposerScreen({
           </div>
 
           <div className="result-foot">
+            {sendRecoveryError && (
+              <div className="send-recovery" role="alert">
+                <span>{sendRecoveryError}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void reauthorizeSend()}
+                  disabled={reauthorizingSend}
+                >
+                  <IconRefresh size={13} />
+                  {reauthorizingSend ? "재동의 중" : "Google 재동의"}
+                </button>
+              </div>
+            )}
             <span className="format-pill">
               <b>형식</b>
               <span style={{ color: "var(--text-3)" }}>· 인사말/서명 적용</span>
