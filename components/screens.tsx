@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   PERSONA_TONE_OPTIONS,
   normalizePersonaTone,
@@ -1039,6 +1039,9 @@ export function HistoryScreen({
   onDeleted: (id: string) => void;
   onToast: (message: string) => void;
 }) {
+  const searchParams = useSearchParams();
+  const requestedOpenId = searchParams.get("open");
+  const requestedOpenIdRef = useRef<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterId, setFilterId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1112,12 +1115,8 @@ export function HistoryScreen({
     }
   }, [openId, visibleHistory]);
 
-  const handleHistoryToggle = useCallback(
+  const ensureHistoryDetail = useCallback(
     (item: HistoryItem) => {
-      const isClosing = openId === item.id;
-      setOpenId(isClosing ? null : item.id);
-      if (isClosing) return;
-
       const cachedDetail = detailById[item.id];
       if (cachedDetail?.item || cachedDetail?.isLoading) return;
 
@@ -1155,8 +1154,47 @@ export function HistoryScreen({
           }));
         });
     },
-    [detailById, openId],
+    [detailById],
   );
+
+  const openHistoryItem = useCallback(
+    (item: HistoryItem) => {
+      setOpenId(item.id);
+      ensureHistoryDetail(item);
+    },
+    [ensureHistoryDetail],
+  );
+
+  const handleHistoryToggle = useCallback(
+    (item: HistoryItem) => {
+      const isClosing = openId === item.id;
+      if (isClosing) {
+        setOpenId(null);
+        return;
+      }
+      openHistoryItem(item);
+    },
+    [openHistoryItem, openId],
+  );
+
+  useEffect(() => {
+    if (!requestedOpenId) return;
+    if (requestedOpenIdRef.current === requestedOpenId) return;
+    const requestedItem = history.find((item) => item.id === requestedOpenId);
+    if (!requestedItem) return;
+    requestedOpenIdRef.current = requestedOpenId;
+    openHistoryItem(requestedItem);
+  }, [history, openHistoryItem, requestedOpenId]);
+
+  useEffect(() => {
+    if (!requestedOpenId || openId !== requestedOpenId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`history-detail-${requestedOpenId}`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openId, requestedOpenId]);
 
   const handleHistoryDelete = useCallback(
     async (item: HistoryItem) => {

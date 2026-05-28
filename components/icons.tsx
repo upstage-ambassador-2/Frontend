@@ -148,6 +148,14 @@ export const IconClose = (p: IconProps) => (
   </Icon>
 );
 
+export const IconLogout = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6.5 3H4.2A1.2 1.2 0 0 0 3 4.2v7.6A1.2 1.2 0 0 0 4.2 13h2.3" />
+    <path d="M8.5 8h5" />
+    <path d="M11.5 5.5L14 8l-2.5 2.5" />
+  </Icon>
+);
+
 export const IconMail = (p: IconProps) => (
   <Icon {...p}>
     <rect x="2" y="3.5" width="12" height="9" rx="1.5" />

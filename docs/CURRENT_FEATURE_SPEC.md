@@ -48,6 +48,8 @@ Gmail 받은편지함, Gmail 발송, Contacts import, Settings 통합 상태
 - Slack과 Notion은 UI에 표시하지만 `지원 예정` no-op 상태로 둔다.
 - Settings의 통합 버튼은 실제 연결/해제가 아니라 안내 API를 호출하고 toast를 표시한다.
 - Settings의 통합 버튼은 안내 요청 또는 Google 재동의 시작 중 중복 클릭을 막고 진행 중 문구를 표시한다.
+- Sidebar footer의 계정 메뉴는 더보기 버튼으로 열고, 계정 설정 이동과 로그아웃 액션을 제공한다.
+- 계정 메뉴는 바깥 클릭 또는 `Escape`로 닫히며 로그아웃은 기존 `POST /auth/logout` 흐름을 사용한다.
 
 ### 기능 효과
 사용자가 현재 계정과 사용 가능한 외부 연동 범위를 확인할 수 있다.
@@ -243,6 +245,7 @@ AI가 생성한 초안과 Gmail 발송 상태를 사용자별로 저장하고, H
 - 목록 row는 subject, preview, 대상 이름/이메일, `draft` 또는 `sent` 상태, tone/length, 작성 시각을 표시한다.
 - 화면 내 client filter로 전체, persona별, reply 기록별 필터를 제공한다.
 - 검색어 입력 시 subject, preview/body, brief, reply subject, 대상 이름/이메일, 상태, 작성 시각을 클라이언트에서 필터링한다.
+- Sidebar 검색의 history 결과는 `/history?open=<historyId>`로 이동해 해당 detail panel을 자동으로 연다.
 - row 클릭 시 프론트엔드는 `GET /history/{id}`를 호출해 상세 데이터를 조회한다.
 - 상세 조회 중에는 기존 detail panel 안에서 loading 문구를 표시한다.
 - 상세 조회 성공 시 API 응답의 subject, body, 대상 정보를 detail panel에 표시한다.

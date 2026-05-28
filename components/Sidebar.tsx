@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { HistoryItem, Persona } from "@/lib/data";
 import { PersonaAvatar } from "./PersonaAvatar";
@@ -15,6 +15,7 @@ import {
   IconMore,
   IconMail,
   IconClose,
+  IconLogout,
 } from "./icons";
 import { hrefForRoute, type Route } from "@/lib/routes";
 import type { User } from "@/lib/api";
@@ -52,6 +53,7 @@ type Props = {
   user: User | null;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  onLogout: () => void;
 };
 
 export function Sidebar({
@@ -64,8 +66,11 @@ export function Sidebar({
   user,
   mobileOpen,
   onCloseMobile,
+  onLogout,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const searchActive = normalizedSearch.length > 0;
 
@@ -121,6 +126,26 @@ export function Sidebar({
   const clearSearch = () => setSearchQuery("");
   const hasSearchResults =
     personaResults.length > 0 || historyResults.length > 0;
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   return (
     <aside
@@ -204,7 +229,9 @@ export function Sidebar({
                 return (
                   <Link
                     key={item.id}
-                    href={hrefForRoute("history")}
+                    href={`${hrefForRoute("history")}?open=${encodeURIComponent(
+                      item.id,
+                    )}`}
                     className="side-search-result"
                     title={subject}
                     onClick={() => {
@@ -324,22 +351,66 @@ export function Sidebar({
         </Link>
       </div>
 
-      <div className="side-foot">
-        <div className="avatar" style={{ background: "#dfe3da", fontSize: 11 }}>
-          {(user?.name || "M")
-            .split(/\s+/)
-            .map((part) => part[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase()}
+      <div className="side-foot-wrap" ref={accountMenuRef}>
+        <div className="side-foot">
+          <div className="avatar" style={{ background: "#dfe3da", fontSize: 11 }}>
+            {(user?.name || "M")
+              .split(/\s+/)
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </div>
+          <div className="grow">
+            <div className="side-foot-name">{user?.name || "로그인 사용자"}</div>
+            <div className="side-foot-mail">{user?.email || "mello@example.com"}</div>
+          </div>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="계정 메뉴"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onClick={() => setAccountMenuOpen((open) => !open)}
+          >
+            <IconMore size={14} />
+          </button>
         </div>
-        <div className="grow">
-          <div className="side-foot-name">{user?.name || "로그인 사용자"}</div>
-          <div className="side-foot-mail">{user?.email || "mello@example.com"}</div>
-        </div>
-        <button type="button" className="icon-btn" aria-label="더보기">
-          <IconMore size={14} />
-        </button>
+        {accountMenuOpen && (
+          <div className="side-account-menu" role="menu" aria-label="계정 메뉴">
+            <Link
+              href={hrefForRoute("settings")}
+              role="menuitem"
+              className="side-account-menu-item"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onCloseMobile();
+              }}
+            >
+              <IconSettings size={13} />
+              <span>
+                <span>계정 설정</span>
+                <small>프로필과 통합 상태</small>
+              </span>
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              className="side-account-menu-item"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onCloseMobile();
+                onLogout();
+              }}
+            >
+              <IconLogout size={13} />
+              <span>
+                <span>로그아웃</span>
+                <small>현재 세션 종료</small>
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
