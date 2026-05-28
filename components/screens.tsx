@@ -1356,6 +1356,13 @@ const FORMAT_DIRTY_KEYS: Array<keyof MailFormat> = [
   "language",
 ];
 
+function validateFormatDraft(draft: MailFormat): string | null {
+  if (!draft.greeting.trim()) return "인사말은 비워둘 수 없습니다.";
+  if (!draft.structure.trim()) return "본문 구조는 비워둘 수 없습니다.";
+  if (!draft.language.trim()) return "기본 언어는 비워둘 수 없습니다.";
+  return null;
+}
+
 export function FormatScreen({
   format,
   loadError,
@@ -1378,6 +1385,7 @@ export function FormatScreen({
       ),
     [draft, format],
   );
+  const formatValidationError = editing ? validateFormatDraft(draft) : null;
 
   useEffect(() => {
     if (!editing) setDraft(format);
@@ -1435,6 +1443,10 @@ export function FormatScreen({
 
   const save = async () => {
     if (!formatDirty || saving) return;
+    if (formatValidationError) {
+      onToast(formatValidationError);
+      return;
+    }
     setSaving(true);
     try {
       const saved = await api.updateFormat(draft);
@@ -1458,7 +1470,7 @@ export function FormatScreen({
         type="button"
         className="btn-primary"
         onClick={save}
-        disabled={saving || !formatDirty}
+        disabled={saving || !formatDirty || !!formatValidationError}
       >
         {saving ? "저장 중" : "저장"}
       </button>
@@ -1525,6 +1537,11 @@ export function FormatScreen({
                   />
                 </label>
               </div>
+              {formatValidationError && (
+                <div className="state-row error-text" role="alert">
+                  {formatValidationError}
+                </div>
+              )}
               {renderEditActions("bottom")}
             </>
           ) : (
