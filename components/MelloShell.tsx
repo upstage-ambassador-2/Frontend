@@ -95,6 +95,7 @@ type MelloContextValue = {
   handleReply: (context: ReplyContext) => void;
   handleLogout: () => Promise<void>;
   replaceHistory: (item: HistoryItem) => void;
+  removeHistory: (id: string) => void;
 };
 
 const MelloContext = createContext<MelloContextValue | null>(null);
@@ -315,6 +316,10 @@ export function MelloShell({
     });
   }, []);
 
+  const removeHistory = useCallback((id: string) => {
+    setHistory((items) => items.filter((item) => item.id !== id));
+  }, []);
+
   const value = useMemo<MelloContextValue>(
     () => ({
       me: initialMe,
@@ -338,6 +343,7 @@ export function MelloShell({
       handleReply,
       handleLogout,
       replaceHistory,
+      removeHistory,
     }),
     [
       brief,
@@ -350,6 +356,7 @@ export function MelloShell({
       personas,
       replyContext,
       openPersonaCompose,
+      removeHistory,
       replaceHistory,
       selectedId,
       setSelectedId,
