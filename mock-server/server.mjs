@@ -1212,12 +1212,13 @@ async function handler(req, res) {
     if (req.method === "POST" && path === "/gmail/send") {
       const payload = await readBody(req);
       const historyId = payload.historyId || payload.history_id;
-      const replyContextId = payload.replyContextId || payload.reply_context_id;
       const item = history.find((entry) => entry.id === historyId);
       if (historyId && !item) {
         sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
         return;
       }
+      const replyContextId =
+        payload.replyContextId || payload.reply_context_id || item?.replyContextId;
       const replyContext = replyContexts.find(
         (context) => context.id === replyContextId,
       );
