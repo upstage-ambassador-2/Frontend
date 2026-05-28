@@ -296,6 +296,8 @@ export function ComposerScreen({
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
   const [formatExpanded, setFormatExpanded] = useState(false);
+  const [draftEditedSinceGenerate, setDraftEditedSinceGenerate] =
+    useState(false);
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
@@ -319,12 +321,14 @@ export function ComposerScreen({
   const lengthLabel = lengthOption.label;
 
   const canGenerate = !!brief.trim() || !!replyContext;
+  const draftAlreadySent = draft?.history?.status === "sent";
   const canRequestGenerate = canGenerate && !generating;
   const canSend =
     !!draft?.subject.trim() &&
     !!draft?.body.trim() &&
     !generating &&
     !sending &&
+    !draftAlreadySent &&
     (!!replyContext || !!persona?.email);
   const canEditDraft =
     !!draft && !generating && draft.history?.status !== "sent";
@@ -390,6 +394,7 @@ export function ComposerScreen({
 
   const editDraftBody = useCallback(
     (body: string) => {
+      setDraftEditedSinceGenerate(true);
       setDraft((current) => {
         if (!current) return current;
         const next = { ...current, body };
@@ -407,6 +412,7 @@ export function ComposerScreen({
 
   const editDraftSubject = useCallback(
     (subject: string) => {
+      setDraftEditedSinceGenerate(true);
       setDraft((current) => {
         if (!current) return current;
         const next = { ...current, subject };
@@ -424,10 +430,19 @@ export function ComposerScreen({
 
   const runGenerate = useCallback(async () => {
     if (!canRequestGenerate) return;
+    const previousDraftEdited = draftEditedSinceGenerate;
+    if (
+      previousDraftEdited &&
+      draft &&
+      !window.confirm("수정한 초안을 새 생성 결과로 덮어쓸까요?")
+    ) {
+      return;
+    }
     clearPendingDraftSave();
     draftSaveSeqRef.current += 1;
     setDraftSaveState("idle");
     const previousDraft = draft;
+    setDraftEditedSinceGenerate(false);
     let receivedDelta = false;
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -459,11 +474,13 @@ export function ComposerScreen({
           onDone: (result) => {
             if (requestRef.current !== requestId) return;
             setDraft(result);
+            setDraftEditedSinceGenerate(false);
             if (result.history) onHistoryCreated(result.history);
           },
           onError: (message) => {
             if (requestRef.current !== requestId) return;
             setDraft(previousDraft);
+            setDraftEditedSinceGenerate(previousDraftEdited);
             onToast(message);
           },
         },
@@ -472,6 +489,7 @@ export function ComposerScreen({
     } catch (error) {
       if (controller.signal.aborted) return;
       setDraft(previousDraft);
+      setDraftEditedSinceGenerate(previousDraftEdited);
       onToast(error instanceof Error ? error.message : "초안 생성에 실패했습니다.");
     } finally {
       if (requestRef.current === requestId) setGenerating(false);
@@ -481,6 +499,7 @@ export function ComposerScreen({
     canRequestGenerate,
     clearPendingDraftSave,
     draft,
+    draftEditedSinceGenerate,
     lengthOption.value,
     onHistoryCreated,
     onToast,
@@ -492,6 +511,13 @@ export function ComposerScreen({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        const target = event.target as HTMLElement | null;
+        const isResultEditor =
+          target?.closest("[data-testid='result-panel']") &&
+          (target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement);
+        if (isResultEditor) return;
+        event.preventDefault();
         void runGenerate();
       }
     };
@@ -510,6 +536,10 @@ export function ComposerScreen({
 
   const send = useCallback(async () => {
     if (!draft?.subject.trim() || !draft?.body.trim() || sendingRef.current) {
+      return;
+    }
+    if (draft.history?.status === "sent") {
+      onToast("이미 발송된 초안입니다.");
       return;
     }
     if (!replyContext && !persona?.email) {
@@ -539,6 +569,7 @@ export function ComposerScreen({
             : current,
         );
       }
+      setDraftEditedSinceGenerate(false);
       onToast("Gmail로 발송되었습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "메일 발송에 실패했습니다.");
@@ -556,6 +587,7 @@ export function ComposerScreen({
     const historyId = draft.history?.id;
     if (!historyId) {
       setDraft({ ...draft, subject: "", body: "" });
+      setDraftEditedSinceGenerate(false);
       setDraftSaveState("idle");
       onToast("초안을 비웠습니다");
       return;
@@ -564,6 +596,7 @@ export function ComposerScreen({
     try {
       const history = await api.resetHistoryDraft(historyId);
       applyDraftHistory(history);
+      setDraftEditedSinceGenerate(false);
       setDraftSaveState("saved");
       onToast("초안을 비웠습니다");
     } catch (error) {
@@ -852,7 +885,7 @@ export function ComposerScreen({
               data-testid="send-btn"
             >
               <IconSend size={14} />
-              {sending ? "보내는 중" : "보내기"}
+              {draftAlreadySent ? "발송 완료" : sending ? "보내는 중" : "보내기"}
             </button>
           </div>
         </div>

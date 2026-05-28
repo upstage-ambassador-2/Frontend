@@ -134,13 +134,15 @@ Solar 기반 SSE 메일 초안 생성
 - Compose 화면에서 brief를 입력하거나 reply context가 있는 상태에서 `Mello에게 작성 요청`을 누른다.
 - 프론트엔드는 `POST /ai/generate`를 호출하고 SSE stream을 읽는다.
 - 백엔드는 persona, reply context, mail format을 조회하고 Solar 프롬프트를 구성한다.
-- Solar 프롬프트에는 persona의 피해야 할 표현을 그대로 쓰지 말 것과, 서명이 있으면 본문 끝에 포함할 것을 명시한다.
+- Solar 프롬프트에는 출력 계약(Subject/Body), 사실 생성 금지, 길이별 본문 구성, 답장 작성 규칙, persona 선호/금지 표현, 서명 포함 규칙을 명시한다.
 - 생성 중 `delta` event로 텍스트 청크를 보낸다.
 - 완료 시 `done` event로 `subject`, `body`, `history`를 반환한다.
 - 백엔드는 완료 직후 최종 draft를 검증해 mail format signature가 빠져 있으면 저장 전 본문 끝에 보강한다.
 - 백엔드는 완료 직후 최종 draft의 subject/body에 persona 금지 표현이 포함되면 `error` event를 반환하고 history를 생성하지 않는다.
 - 생성 완료 후 history는 `draft` 상태로 저장된다.
 - `다시 생성`은 같은 입력으로 생성 API를 재호출한다.
+- 사용자가 생성 결과 제목/본문을 수동 편집한 뒤 다시 생성하려 하면 덮어쓰기 확인을 먼저 받는다.
+- 작성 결과 편집 input/textarea 안에서는 `⌘/Ctrl + Enter`가 재생성을 트리거하지 않아 수동 편집본이 실수로 덮이지 않는다.
 - 새 stream의 첫 `delta`가 오면 이전 표시 결과를 새 결과로 교체한다.
 - 생성 실패 시 에러 toast를 표시하고, 이전 draft가 있으면 보존하며, 실패한 요청의 history는 생성하지 않는다.
 
@@ -162,6 +164,7 @@ Gmail에서 최근 받은 메일을 조회하고, 선택한 메일의 원문과 
 - Inbox 화면은 server component에서 `GET /gmail/messages`를 호출해 메일 목록을 렌더링한다.
 - 페이지 크기와 Gmail `pageToken` 기반 cursor pagination을 지원한다.
 - 메일 항목 클릭 시 `/compose/{personaId}/reply/{messageId}` 또는 `/compose/reply/{messageId}`로 이동한다.
+- sender email이 기존 persona와 매칭되지 않으면 임의의 현재 선택 persona로 진입하지 않고 `/compose/reply/{messageId}`에서 신규 persona 연결을 진행한다.
 - 상세 route는 server side에서 `GET /gmail/messages/{messageId}`를 호출한다.
 - 상세 응답의 raw body와 reply context를 Compose에 주입한다.
 - sender email이 기존 persona와 매칭되면 해당 persona를 사용한다.
@@ -190,6 +193,7 @@ Gmail API 직접 발송
 - 백엔드는 발송 직전 mail format signature가 body에 없으면 Gmail API 호출과 history 갱신에 사용할 최종 body에 서명을 보강한다.
 - 백엔드는 Gmail API send를 호출한다.
 - 성공 시 history 상태를 `sent`로 갱신하고 Gmail message id와 sent_at을 저장한다.
+- 프론트엔드는 `sent` 상태의 생성 결과에 대해 보내기 버튼을 비활성화하고 재발송을 막는다.
 - 실패 시 프론트엔드 toast로 에러를 표시한다.
 
 ### 기능 효과
@@ -271,7 +275,8 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Gmail send는 payload에 `replyContextId`가 없으면 연결된 history의 reply context를 사용해 답장 대상과 thread header를 보완한다.
 - mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
 - mock persona 삭제는 백엔드와 동일하게 연결된 history의 persona relation을 해제하고 대상 스냅샷을 유지한다.
-- mock `GET /history`는 백엔드와 동일하게 `personaId`, `personaEmail`, `email` 필터를 지원하며 스냅샷 이메일도 매칭한다.
+- mock `GET /history`는 백엔드와 동일하게 `personaId`, `personaEmail`, `email` 필터를 지원하며 현재 연결된 persona 이메일과 스냅샷 이메일을 함께 매칭한다.
+- mock `GET /history?personaId=`는 존재하지 않는 persona id에 대해 백엔드와 동일하게 404를 반환한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
 - mock server는 `GET /health`와 `GET /health/ready`를 제공해 프론트 rewrite와 운영 readiness 계약을 로컬에서 확인할 수 있다.
 

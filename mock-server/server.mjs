@@ -443,7 +443,11 @@ function historyOut(item) {
 }
 
 function historyMatchesEmail(item, email) {
+  const linkedPersona = item.personaId
+    ? personas.find((persona) => persona.id === item.personaId)
+    : null;
   const candidates = [
+    linkedPersona?.email,
     item.personaEmail,
     item.counterpartyEmail,
     item.replyFromAddr,
@@ -1074,6 +1078,10 @@ async function handler(req, res) {
       const email = normalizedEmail(
         url.searchParams.get("personaEmail") || url.searchParams.get("email") || "",
       );
+      if (personaId && !personas.some((item) => item.id === personaId)) {
+        sendJson(res, 404, { detail: "페르소나를 찾을 수 없습니다." }, headers);
+        return;
+      }
       const filtered = history.filter((item) => {
         if (personaId && item.personaId !== personaId) return false;
         if (email && !historyMatchesEmail(item, email)) return false;
