@@ -918,6 +918,14 @@ export function PeopleScreen({
               <div className="card-actions">
                 <button
                   type="button"
+                  className="btn-secondary person-card-compose"
+                  onClick={() => onOpen(persona.id)}
+                >
+                  <IconSend size={13} />
+                  메일 작성
+                </button>
+                <button
+                  type="button"
                   className="btn-secondary"
                   onClick={() => openDraft(draftFromPersona(persona))}
                 >

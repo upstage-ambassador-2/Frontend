@@ -113,7 +113,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
 }
 
 button { font-family: inherit; }
@@ -157,7 +157,7 @@ textarea {
   flex: 0 0 auto;
 }
 .side-brand-name {
-  font-weight: 600; font-size: 15px; letter-spacing: -0.01em;
+  font-weight: 600; font-size: 15px; letter-spacing: 0;
 }
 .side-brand-badge {
   margin-left: auto;
@@ -227,10 +227,18 @@ textarea {
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 .side-search-result:hover {
   background: var(--hover);
   color: var(--text);
+}
+.side-search-result:active { transform: translateY(1px); }
+.side-search-result:focus-visible,
+.side-item:focus-visible,
+.side-person:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .side-search-result-copy {
   display: flex;
@@ -248,7 +256,7 @@ textarea {
   font-size: var(--t-sm);
 }
 .side-search-result-copy small {
-  color: var(--text-4);
+  color: var(--text-3);
   font-size: var(--t-xs);
 }
 .side-search-history-icon {
@@ -280,8 +288,10 @@ textarea {
   user-select: none;
   border: 0; background: transparent; text-align: left; width: 100%;
   text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 .side-item:hover { background: var(--hover); color: var(--text); }
+.side-item:active { transform: translateY(1px); }
 .side-item.is-active {
   background: var(--hover-strong);
   color: var(--text);
@@ -333,15 +343,17 @@ textarea {
   border: 0; background: transparent; text-align: left;
   font: inherit; color: var(--text-2);
   text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 .side-person:hover { background: var(--hover); color: var(--text); }
+.side-person:active { transform: translateY(1px); }
 .side-person.is-active { background: var(--hover-strong); color: var(--text); }
 .side-person .avatar { width: 20px; height: 20px; font-size: 9.5px; }
 .side-person-name { font-size: 13.5px; }
 .side-person-meta {
   margin-left: auto;
   font: 500 var(--t-xs)/1 var(--mono);
-  color: var(--text-4);
+  color: var(--text-3);
   letter-spacing: 0.03em;
 }
 
@@ -455,8 +467,19 @@ textarea {
   font-size: 12.5px; color: var(--text-2);
   display: inline-flex; align-items: center; gap: 6px;
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
-.topbar-btn:hover { background: var(--hover); color: var(--text); }
+.topbar-btn:not(:disabled):hover { background: var(--hover); color: var(--text); }
+.topbar-btn:active { transform: translateY(1px); }
+.topbar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .topbar-btn.is-primary {
   background: var(--text); color: var(--surface);
   border-color: var(--text);
@@ -478,7 +501,7 @@ textarea {
 .page-title-text {
   font-size: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .section-label {
   font: 500 10.5px/1 var(--mono);
@@ -654,7 +677,7 @@ textarea {
   margin: 0;
   max-width: none;
 }
-.auth-page .auth-title { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.auth-page .auth-title { font-size: 26px; font-weight: 700; letter-spacing: 0; }
 
 /* ─── Auth — login shell (split layout) ─────────────────── */
 .auth-shell {
@@ -696,7 +719,7 @@ textarea {
   flex: 0 0 auto;
 }
 .auth-brand-name {
-  font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+  font-size: 17px; font-weight: 600; letter-spacing: 0;
 }
 .auth-brand-badge {
   margin-left: 2px;
@@ -714,7 +737,7 @@ textarea {
 .auth-brand-copy h1 {
   margin: 0;
   font-size: 32px; line-height: 1.2;
-  font-weight: 600; letter-spacing: -0.025em;
+  font-weight: 600; letter-spacing: 0;
   color: var(--text);
   text-wrap: balance;
 }
@@ -847,12 +870,18 @@ textarea {
   padding: 7px 14px;
   border-radius: 5px;
   cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 .auth-tab.is-on {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
+.auth-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.auth-tab:active { transform: translateY(1px); }
 .auth-help {
   font-size: 12px; color: var(--text-3);
 }
@@ -869,7 +898,7 @@ textarea {
 }
 .auth-shell .auth-title {
   font-size: 24px; font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   color: var(--text);
 }
 .auth-sub {
@@ -887,6 +916,12 @@ textarea {
   gap: 9px;
   cursor: pointer;
   width: 100%;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
 .auth-btn-google {
   background: var(--surface);
@@ -894,7 +929,12 @@ textarea {
   border: 1px solid var(--border-strong);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
 }
-.auth-btn-google:hover { background: var(--hover); }
+.auth-btn-google:not(:disabled):hover { background: var(--hover); border-color: var(--text-4); }
+.auth-btn-google:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.auth-btn-google:not(:disabled):active { transform: translateY(1px); }
 .auth-btn-google[disabled] { opacity: 0.7; cursor: not-allowed; }
 
 .auth-perm {
@@ -921,8 +961,14 @@ textarea {
   text-underline-offset: 2px;
   text-decoration-color: var(--text-4);
   cursor: pointer; padding: 0;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 .auth-text-btn:hover { color: var(--text); text-decoration-color: var(--text); }
+.auth-text-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
 
 .auth-google-note {
   display: flex; align-items: center; gap: 10px;
@@ -1004,7 +1050,7 @@ textarea {
   .auth-brand-copy h1 {
     font-size: 26px;
     line-height: 1.22;
-    letter-spacing: -0.018em;
+    letter-spacing: 0;
   }
   .auth-brand-copy p {
     font-size: 13px;
@@ -1127,7 +1173,7 @@ textarea {
   display: grid; place-items: center;
   color: var(--text);
   font-weight: 600; font-size: 12px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   flex-shrink: 0;
 }
 .tag {
@@ -1216,8 +1262,23 @@ textarea {
   background: transparent;
   border: 1px solid var(--border);
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
-.recipient-change:hover { background: var(--hover); color: var(--text); }
+.recipient-change:not(:disabled):hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.recipient-change:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.recipient-change:not(:disabled):active { transform: translateY(1px); }
 .popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -1273,8 +1334,8 @@ textarea {
 }
 .modal-sub {
   margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-3);
+  font-size: 12.5px;
+  color: var(--text-2);
   line-height: 1.45;
 }
 .modal-close {
@@ -1404,7 +1465,7 @@ textarea {
   padding: 14px 16px;
   font: 500 14.5px/1.6 var(--font);
   color: var(--text);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
 }
 .compose-input::placeholder { color: var(--text-4); }
 
@@ -1413,7 +1474,7 @@ textarea {
   padding: 8px 12px 8px 14px;
   border-top: 1px solid var(--border-faint);
 }
-.foot-meta { font-size: 11.5px; color: var(--text-4); }
+.foot-meta { font-size: 12px; color: var(--text-3); }
 .format-summary {
   appearance: none;
   border: 0;
@@ -1427,12 +1488,18 @@ textarea {
   text-align: left;
   cursor: pointer;
   font: inherit;
+  transition: color 0.15s ease, transform 0.12s ease;
 }
 .format-summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: var(--r-sm);
 }
+.format-summary:hover .format-summary-text,
+.format-summary:hover .format-summary-label {
+  color: var(--text);
+}
+.format-summary:active { transform: translateY(1px); }
 .format-summary-label {
   flex: 0 0 auto;
 }
@@ -1453,7 +1520,7 @@ textarea {
 .foot-spacer { flex: 1; }
 .foot-hint {
   font: 500 11px/1 var(--mono);
-  color: var(--text-4);
+  color: var(--text-3);
   white-space: nowrap;
   display: inline-flex; align-items: center; gap: 4px;
 }
@@ -1471,11 +1538,23 @@ textarea {
   font: 500 13px/1 var(--font);
   display: inline-flex; align-items: center; gap: 7px;
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
-.btn-primary:hover { background: #1c1a17; }
+.btn-primary:not(:disabled):hover { background: #1c1a17; }
+.btn-primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.btn-primary:not(:disabled):active { transform: translateY(1px); }
 .btn-primary[disabled] {
   background: var(--surface-3); color: var(--text-4);
   cursor: not-allowed;
+  opacity: 1;
 }
 .btn-secondary {
   min-height: var(--control-h-xs); padding: 0 12px;
@@ -1486,8 +1565,29 @@ textarea {
   color: var(--text-2);
   display: inline-flex; align-items: center; gap: 6px;
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
-.btn-secondary:hover { background: var(--hover); color: var(--text); }
+.btn-secondary:not(:disabled):hover {
+  background: var(--hover);
+  border-color: var(--text-4);
+  color: var(--text);
+}
+.btn-secondary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn-secondary:not(:disabled):active { transform: translateY(1px); }
+.btn-secondary:disabled {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-4);
+  opacity: 1;
+}
 
 /* Knobs row */
 .knobs {
@@ -1526,11 +1626,19 @@ textarea {
   text-align: center;
   word-break: keep-all;
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
-.knob-option:hover {
+.knob-option:not(:disabled):hover {
   background: var(--hover);
+  border-color: var(--border-strong);
   color: var(--text);
 }
+.knob-option:not(:disabled):active { transform: translateY(1px); }
 .knob-option.is-selected {
   border-color: var(--accent);
   background: var(--accent-softer);
@@ -1580,10 +1688,24 @@ textarea {
   border: 0; background: transparent;
   color: var(--text-3);
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
-.icon-btn:hover { background: var(--hover); color: var(--text); }
+.icon-btn:not(:disabled):hover { background: var(--hover); color: var(--text); }
 .icon-btn.is-on { color: var(--accent); }
-.icon-btn:disabled { background: transparent; color: var(--text-4); }
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.icon-btn:not(:disabled):active { transform: translateY(1px); }
+.icon-btn:disabled {
+  background: transparent;
+  color: var(--text-4);
+  opacity: 0.62;
+}
 
 .result-subject {
   padding: 10px 22px 0;
@@ -1605,7 +1727,7 @@ textarea {
   font-size: 14.5px; line-height: 1.7;
   color: var(--text);
   white-space: pre-wrap;
-  letter-spacing: -0.003em;
+  letter-spacing: 0;
   min-height: 160px;
   max-height: min(52vh, 520px);
   overflow-y: auto;
@@ -2051,6 +2173,12 @@ textarea {
   padding: 14px;
   display: flex; flex-direction: column; gap: 10px;
   min-width: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+.person-card:hover,
+.person-card:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card);
 }
 .person-card-main {
   appearance: none;
@@ -2065,7 +2193,14 @@ textarea {
   color: inherit;
   min-width: 0;
   width: 100%;
+  border-radius: var(--r-md);
+  transition: transform 0.12s ease;
 }
+.person-card-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.person-card-main:active { transform: translateY(1px); }
 .person-card-h { display: flex; align-items: center; gap: 10px; }
 .person-card .avatar { width: 36px; height: 36px; font-size: 13px; }
 .person-card-name {
@@ -2092,9 +2227,9 @@ textarea {
   white-space: nowrap;
 }
 .person-card-summary {
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 1.45;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
   word-break: break-word;
   overflow: hidden;
   display: -webkit-box;
@@ -2113,7 +2248,7 @@ textarea {
   display: flex; align-items: center; gap: 6px;
   padding-top: 8px;
   border-top: 1px solid var(--border-faint);
-  font-size: 11.5px; color: var(--text-4);
+  font-size: 12px; color: var(--text-3);
   min-width: 0;
 }
 .person-card-last {
@@ -2146,6 +2281,10 @@ textarea {
 }
 .card-actions .btn-secondary {
   justify-content: center;
+}
+.card-actions .person-card-compose {
+  margin-right: auto;
+  color: var(--text);
 }
 
 /* ─── Format card (내 메일 형식) ──────────────────────────── */
@@ -2251,7 +2390,7 @@ textarea {
   white-space: nowrap;
 }
 .history-row .h-subj { color: var(--text); font-weight: 500; }
-.history-row .h-prev { color: var(--text-3); font-size: 12px; margin-top: 2px; }
+.history-row .h-prev { color: var(--text-2); font-size: 12.5px; margin-top: 2px; }
 .history-row .h-meta {
   color: var(--text-3);
   font: 500 11.5px/1.35 var(--mono);
@@ -2274,8 +2413,8 @@ textarea {
   font-size: 12.5px;
 }
 .h-target small {
-  color: var(--text-4);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 .h-status {
   min-width: 0;
@@ -2287,8 +2426,8 @@ textarea {
 .h-status small {
   max-width: 100%;
   overflow: hidden;
-  color: var(--text-4);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11px;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2300,8 +2439,17 @@ textarea {
   background: transparent;
   text-align: left;
   cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
-.history-button:hover { background: var(--hover); }
+.history-button:hover {
+  background: var(--hover);
+  box-shadow: inset 3px 0 0 var(--accent-soft);
+}
+.history-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.history-button:active { transform: translateY(1px); }
 .history-detail {
   margin: 0 14px 12px 56px;
   padding: 12px 14px;
@@ -2439,8 +2587,18 @@ textarea {
   text-decoration: none;
   text-align: left;
   cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
-.inbox-row:hover { background: var(--hover); }
+.inbox-row:hover {
+  background: var(--hover);
+  box-shadow: inset 3px 0 0 var(--accent-soft);
+}
+.inbox-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--hover);
+}
+.inbox-row:active { transform: translateY(1px); }
 .inbox-row:last-child { border-bottom: 0; }
 .inbox-from,
 .inbox-main {
@@ -2465,8 +2623,8 @@ textarea {
 }
 .inbox-from-name {
   min-width: 0;
-  color: var(--text-2);
-  font-size: 12.5px;
+  color: var(--text);
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
   max-width: 100%;
@@ -2477,7 +2635,7 @@ textarea {
 .inbox-from-email {
   max-width: 100%;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.35;
   direction: ltr;
   overflow: hidden;
@@ -2486,7 +2644,7 @@ textarea {
 }
 .inbox-date {
   color: var(--text-3);
-  font: 500 11.5px/1.35 var(--mono);
+  font: 500 12px/1.35 var(--mono);
   text-align: right;
   white-space: nowrap;
 }
@@ -2500,8 +2658,8 @@ textarea {
   white-space: nowrap;
 }
 .inbox-snippet {
-  color: var(--text-3);
-  font-size: 12px;
+  color: var(--text-2);
+  font-size: 12.5px;
   line-height: 1.45;
   margin-top: 4px;
   overflow: hidden;
@@ -2721,7 +2879,7 @@ textarea {
   color: var(--text);
   font-weight: 600;
   font-size: 15px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .settings-account-copy,
 .settings-integration-copy,
@@ -2741,8 +2899,8 @@ textarea {
 }
 .settings-account-mail {
   margin-top: 2px;
-  color: var(--text-3);
-  font-size: 12px;
+  color: var(--text-2);
+  font-size: 12.5px;
   direction: ltr;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2763,7 +2921,7 @@ textarea {
 .settings-key {
   width: 180px;
   flex: 0 0 180px;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 .settings-value {
   flex: 1;
@@ -2776,7 +2934,7 @@ textarea {
 .settings-value-sub {
   margin-top: 4px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.45;
 }
 .settings-row-action {
@@ -2797,7 +2955,14 @@ textarea {
   align-items: center;
   justify-content: flex-start;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+.settings-toggle:hover {
+  border-color: var(--text-4);
 }
 .settings-toggle.is-on {
   justify-content: flex-end;
@@ -2808,12 +2973,14 @@ textarea {
   outline: 0;
   box-shadow: 0 0 0 3px var(--accent-softer);
 }
+.settings-toggle:active { transform: translateY(1px); }
 .settings-toggle-thumb {
   width: 18px;
   height: 18px;
   border-radius: 999px;
   background: var(--surface);
   box-shadow: 0 1px 2px rgba(15,15,15,0.16);
+  transition: box-shadow 0.15s ease;
 }
 .settings-integration {
   display: flex;
