@@ -5,5 +5,5 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const initial = await getServerInitial();
-  redirect(initial.auth === "in" ? "/compose" : "/login");
+  redirect(initial.auth === "in" ? "/inbox" : "/login");
 }

@@ -8,6 +8,7 @@ import {
 } from "./data";
 
 const GET_DEDUPE_TTL_MS = 750;
+export const SESSION_EXPIRED_EVENT = "mello:session-expired";
 const getJsonRequests = new Map<
   string,
   { expiresAt: number; promise: Promise<unknown> }
@@ -38,6 +39,10 @@ export type ReplyContext = {
   gmailMessageId: string;
   fromAddr: string;
   from?: string;
+  senderEmail?: string | null;
+  senderName?: string | null;
+  personaId?: string | null;
+  persona?: Persona | null;
   subject: string;
   snippet: string;
   rawBody: string;
@@ -54,6 +59,10 @@ export type GmailMessage = {
   threadId: string | null;
   fromAddr: string;
   from?: string;
+  senderEmail?: string | null;
+  senderName?: string | null;
+  personaId?: string | null;
+  persona?: Persona | null;
   subject: string;
   snippet: string;
   date: string | null;
@@ -109,11 +118,19 @@ export type PersonaPayload = {
   relation: string;
   tone: PersonaTone;
   notes: string;
-  email?: string;
+  email?: string | null;
   role?: string;
   keywords?: string[];
   avoid?: string[];
   prefer?: string;
+};
+
+export type PersonaStructureResult = {
+  tone: PersonaTone;
+  keywords: string[];
+  avoid: string[];
+  prefer: string;
+  notes: string;
 };
 
 export type SendPayload = {
@@ -124,6 +141,11 @@ export type SendPayload = {
   body: string;
   historyId?: string | null;
   replyContextId?: string | null;
+};
+
+export type HistoryDraftPatchPayload = {
+  subject?: string;
+  body?: string;
 };
 
 export type SendResponse = {
@@ -172,6 +194,18 @@ async function parseError(response: Response): Promise<ApiError> {
   }
 }
 
+function emitSessionExpired(message: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }),
+  );
+}
+
+function isSessionExpiredError(error: ApiError): boolean {
+  if (error.status !== 401) return false;
+  return /로그인이 필요|세션이 만료|사용자를 찾을 수/.test(error.message);
+}
+
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
@@ -190,7 +224,9 @@ export async function apiFetch(
     credentials: "include",
   });
   if (!response.ok) {
-    throw await parseError(response);
+    const error = await parseError(response);
+    if (isSessionExpiredError(error)) emitSessionExpired(error.message);
+    throw error;
   }
   return response;
 }
@@ -266,7 +302,25 @@ export const api = {
     );
     return { ...result, personas: normalizePersonas(result.personas) };
   },
+  structurePersona: (text: string) =>
+    apiJson<PersonaStructureResult>("/personas/structure", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   history: () => apiJson<HistoryItem[]>("/history"),
+  historyDetail: (id: string) =>
+    apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}`),
+  deleteHistory: (id: string) =>
+    apiFetch(`/history/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  updateHistoryDraft: (id: string, payload: HistoryDraftPatchPayload) =>
+    apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}/draft`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  resetHistoryDraft: (id: string) =>
+    apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}/draft/reset`, {
+      method: "POST",
+    }),
   format: () => apiJson<MailFormat>("/format"),
   updateFormat: (payload: Partial<MailFormat>) =>
     apiJson<MailFormat>("/format", {

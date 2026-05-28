@@ -1,21 +1,21 @@
 "use client";
 
-import { IconMenu, IconSparkle, IconRefresh, IconSearch } from "./icons";
+import { IconMenu, IconSparkle, IconSearch } from "./icons";
 import type { Route } from "@/lib/routes";
 
 type Props = {
   route: Route;
   crumb: [string, string | null];
-  onResetCompose?: () => void;
   onOpenMobileMenu?: () => void;
+  onFocusHistorySearch?: () => void;
   mobileMenuOpen?: boolean;
 };
 
 export function Topbar({
   route,
   crumb,
-  onResetCompose,
   onOpenMobileMenu,
+  onFocusHistorySearch,
   mobileMenuOpen = false,
 }: Props) {
   return (
@@ -56,18 +56,14 @@ export function Topbar({
               · 페르소나 + 내 형식 결합
             </span>
           </span>
-          <button
-            type="button"
-            className="topbar-btn"
-            onClick={onResetCompose}
-          >
-            <IconRefresh size={13} />
-            <span className="topbar-btn-label">초기화</span>
-          </button>
         </>
       )}
       {route === "history" && (
-        <button type="button" className="topbar-btn">
+        <button
+          type="button"
+          className="topbar-btn"
+          onClick={onFocusHistorySearch}
+        >
           <IconSearch size={13} />
           <span className="topbar-btn-label">검색</span>
         </button>

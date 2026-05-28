@@ -1,5 +1,8 @@
-import { notFound, redirect } from "next/navigation";
-import { ReplyComposeRoute } from "@/components/routes/ReplyComposeRoute";
+import { redirect } from "next/navigation";
+import {
+  ReplyComposeErrorRoute,
+  ReplyComposeRoute,
+} from "@/components/routes/ReplyComposeRoute";
 import {
   getServerGmailMessage,
   getServerInitial,
@@ -18,8 +21,21 @@ export default async function ReplyBootstrapPage({
   }
 
   const message = await getServerGmailMessage(params.messageId);
-  if (!message.ok || !message.data) {
-    notFound();
+  if (!message.ok) {
+    return (
+      <ReplyComposeErrorRoute
+        error={message.error}
+        messageId={params.messageId}
+      />
+    );
+  }
+  if (!message.data) {
+    return (
+      <ReplyComposeErrorRoute
+        error="메일 원문을 불러오지 못했습니다."
+        messageId={params.messageId}
+      />
+    );
   }
 
   return (

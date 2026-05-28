@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const API_REWRITES = [
+  ["/health/ready", "/health/ready"],
   ["/health", "/health"],
   ["/me", "/me"],
   ["/integrations", "/integrations"],

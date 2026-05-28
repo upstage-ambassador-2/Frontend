@@ -4,18 +4,29 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ComposerScreen } from "@/components/ComposerScreen";
 import { useMello } from "@/components/MelloShell";
-import { api, type ReplyContext } from "@/lib/api";
+import { api, startGoogleLogin, type ReplyContext } from "@/lib/api";
 import type { Persona } from "@/lib/data";
 import {
   extractEmailDisplayName,
   normalizeEmailAddress,
 } from "@/lib/email";
 import { composeHref } from "@/lib/routes";
+import { IconMail, IconRefresh } from "../icons";
 
 type Props = {
   initialReplyContext: ReplyContext;
   messageId: string;
 };
+
+type ErrorProps = {
+  error: string;
+  messageId: string;
+  personaId?: string | null;
+};
+
+function needsGoogleReauth(error: string): boolean {
+  return /권한|재인증|다시 로그인|Google 연결/.test(error);
+}
 
 function personaNameFromSender(fromAddr: string, senderEmail: string): string {
   return (
@@ -39,6 +50,76 @@ function mergePersonaByEmail(personas: Persona[], persona: Persona): Persona[] {
   );
 }
 
+export function ReplyComposeErrorRoute({
+  error,
+  messageId,
+  personaId,
+}: ErrorProps) {
+  const router = useRouter();
+  const mello = useMello();
+  const encodedMessageId = encodeURIComponent(messageId);
+  const retryPath = personaId
+    ? `${composeHref(personaId)}/reply/${encodedMessageId}`
+    : `/compose/reply/${encodedMessageId}`;
+
+  const reauthorizeGoogle = async () => {
+    try {
+      window.location.href = await startGoogleLogin(retryPath);
+    } catch (startError) {
+      mello.showToast(
+        startError instanceof Error
+          ? startError.message
+          : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
+  };
+
+  return (
+    <div className="page">
+      <div className="row between page-title">
+        <div>
+          <div className="page-title-text">답장 메일을 불러오지 못했습니다</div>
+          <div className="small muted mt-1">
+            Gmail 원문을 다시 조회한 뒤 답장 초안을 작성할 수 있습니다.
+          </div>
+        </div>
+      </div>
+      <div className="card">
+        <div className="state-row error-text" role="alert">
+          {error}
+        </div>
+        <div className="row gap-2 mt-3">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => router.refresh()}
+          >
+            <IconRefresh size={13} />
+            다시 시도
+          </button>
+          {needsGoogleReauth(error) && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void reauthorizeGoogle()}
+            >
+              Google 재동의
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => router.push("/inbox")}
+          >
+            <IconMail size={13} />
+            받은편지함
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
   const router = useRouter();
   const mello = useMello();
@@ -51,8 +132,11 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
   const personasRef = useRef(mello.personas);
 
   const senderEmail = useMemo(
-    () => normalizeEmailAddress(initialReplyContext.fromAddr),
-    [initialReplyContext.fromAddr],
+    () =>
+      normalizeEmailAddress(
+        initialReplyContext.senderEmail || initialReplyContext.fromAddr,
+      ),
+    [initialReplyContext.fromAddr, initialReplyContext.senderEmail],
   );
 
   useEffect(() => {
@@ -90,7 +174,9 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
     const createPersona = async () => {
       try {
         const created = await api.createPersona({
-          name: personaNameFromSender(initialReplyContext.fromAddr, senderEmail),
+          name:
+            initialReplyContext.senderName ||
+            personaNameFromSender(initialReplyContext.fromAddr, senderEmail),
           relation: "",
           tone: "중립",
           notes: "",
@@ -117,6 +203,7 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
     void createPersona();
   }, [
     initialReplyContext.fromAddr,
+    initialReplyContext.senderName,
     mello.me.user.email,
     mello.personas,
     mello.selectedId,

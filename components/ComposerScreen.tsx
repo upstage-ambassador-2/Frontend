@@ -12,6 +12,7 @@ import { emailsMatch, extractEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconCheck,
+  IconClose,
   IconCopy,
   IconRefresh,
   IconSend,
@@ -22,10 +23,14 @@ function RecipientPicker({
   personas,
   current,
   onPick,
+  label = "받는 사람 변경",
+  disabled = false,
 }: {
   personas: Persona[];
   current: string;
   onPick: (id: string) => void;
+  label?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -46,10 +51,14 @@ function RecipientPicker({
       <button
         type="button"
         className="recipient-change"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((value) => !value);
+        }}
         aria-expanded={open}
+        disabled={disabled}
       >
-        받는 사람 변경
+        {label}
       </button>
       {open && (
         <div role="listbox" aria-label="받는 사람 선택" className="popover">
@@ -61,6 +70,7 @@ function RecipientPicker({
               className="side-person"
               role="option"
               aria-selected={current === persona.id}
+              disabled={disabled}
               style={{ width: "100%" }}
               onClick={() => {
                 onPick(persona.id);
@@ -88,16 +98,28 @@ function RecipientCard({
   personas,
   onPick,
   replyContext,
+  locked,
 }: {
   persona: Persona | undefined;
   personas: Persona[];
   onPick: (id: string) => void;
   replyContext: ReplyContext | null;
+  locked: boolean;
 }) {
   if (!persona) {
     return (
-      <div className="recipient">
-        <div className="small muted">먼저 페르소나를 추가해주세요.</div>
+      <div className="recipient recipient-empty">
+        {personas.length > 0 ? (
+          <RecipientPicker
+            personas={personas}
+            current=""
+            onPick={onPick}
+            label="받는 사람 선택"
+            disabled={locked}
+          />
+        ) : (
+          <div className="small muted">먼저 페르소나를 추가해주세요.</div>
+        )}
       </div>
     );
   }
@@ -147,6 +169,7 @@ function RecipientCard({
           personas={personas}
           current={persona.id}
           onPick={onPick}
+          disabled={locked}
         />
       )}
     </div>
@@ -187,11 +210,13 @@ function Knob({
   options,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   options: ScaleOption[];
   value: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   const selected = selectedScaleOption(options, value);
 
@@ -211,6 +236,7 @@ function Knob({
               (selected.value === option.value ? " is-selected" : "")
             }
             aria-pressed={selected.value === option.value}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
           >
             {option.label}
@@ -263,7 +289,7 @@ export function ComposerScreen({
   onHistoryUpdated,
 }: Props) {
   const persona = useMemo(
-    () => personas.find((item) => item.id === selectedId) ?? personas[0],
+    () => personas.find((item) => item.id === selectedId),
     [personas, selectedId],
   );
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -272,7 +298,13 @@ export function ComposerScreen({
   const [formatExpanded, setFormatExpanded] = useState(false);
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const sendingRef = useRef(false);
+  const draftSaveTimerRef = useRef<number | null>(null);
+  const draftSaveSeqRef = useRef(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const [draftSaveState, setDraftSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   useEffect(() => {
     if (!taRef.current) return;
@@ -287,22 +319,122 @@ export function ComposerScreen({
   const lengthLabel = lengthOption.label;
 
   const canGenerate = !!brief.trim() || !!replyContext;
+  const canRequestGenerate = canGenerate && !generating;
   const canSend =
-    !!draft?.body &&
+    !!draft?.subject.trim() &&
+    !!draft?.body.trim() &&
     !generating &&
     !sending &&
     (!!replyContext || !!persona?.email);
+  const canEditDraft =
+    !!draft && !generating && draft.history?.status !== "sent";
+  const canResetDraft =
+    canEditDraft && !sending && (!!draft?.subject.trim() || !!draft?.body.trim());
+  const currentSubject = draft?.subject || "";
   const currentBody = draft?.body || "";
 
+  const clearPendingDraftSave = useCallback(() => {
+    if (draftSaveTimerRef.current) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearPendingDraftSave, [clearPendingDraftSave]);
+
+  const applyDraftHistory = useCallback(
+    (history: HistoryItem) => {
+      onHistoryUpdated(history);
+      setDraft((current) =>
+        current?.history?.id === history.id
+          ? {
+              ...current,
+              subject: history.subject ?? current.subject,
+              body: history.body ?? current.body,
+              history,
+            }
+          : current,
+      );
+    },
+    [onHistoryUpdated],
+  );
+
+  const scheduleDraftSave = useCallback(
+    (historyId: string, subject: string, body: string) => {
+      clearPendingDraftSave();
+      const requestSeq = draftSaveSeqRef.current + 1;
+      draftSaveSeqRef.current = requestSeq;
+      setDraftSaveState("saving");
+      draftSaveTimerRef.current = window.setTimeout(() => {
+        draftSaveTimerRef.current = null;
+        void api
+          .updateHistoryDraft(historyId, { subject, body })
+          .then((history) => {
+            if (draftSaveSeqRef.current !== requestSeq) return;
+            applyDraftHistory(history);
+            setDraftSaveState("saved");
+          })
+          .catch((error: unknown) => {
+            if (draftSaveSeqRef.current !== requestSeq) return;
+            setDraftSaveState("error");
+            onToast(
+              error instanceof Error
+                ? error.message
+                : "수정한 초안을 저장하지 못했습니다.",
+            );
+          });
+      }, 500);
+    },
+    [applyDraftHistory, clearPendingDraftSave, onToast],
+  );
+
+  const editDraftBody = useCallback(
+    (body: string) => {
+      setDraft((current) => {
+        if (!current) return current;
+        const next = { ...current, body };
+        const historyId = current.history?.id;
+        if (historyId && current.history?.status !== "sent") {
+          scheduleDraftSave(historyId, next.subject, next.body);
+        } else {
+          setDraftSaveState("idle");
+        }
+        return next;
+      });
+    },
+    [scheduleDraftSave],
+  );
+
+  const editDraftSubject = useCallback(
+    (subject: string) => {
+      setDraft((current) => {
+        if (!current) return current;
+        const next = { ...current, subject };
+        const historyId = current.history?.id;
+        if (historyId && current.history?.status !== "sent") {
+          scheduleDraftSave(historyId, next.subject, next.body);
+        } else {
+          setDraftSaveState("idle");
+        }
+        return next;
+      });
+    },
+    [scheduleDraftSave],
+  );
+
   const runGenerate = useCallback(async () => {
-    if (!canGenerate) return;
+    if (!canRequestGenerate) return;
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    setDraftSaveState("idle");
+    const previousDraft = draft;
+    let receivedDelta = false;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     setGenerating(true);
-    setDraft({ subject: "", body: "", history: null });
 
     try {
       await generateDraft(
@@ -316,10 +448,12 @@ export function ComposerScreen({
         {
           onDelta: (chunk, subject) => {
             if (requestRef.current !== requestId) return;
+            const isFirstDelta = !receivedDelta;
+            receivedDelta = true;
             setDraft((current) => ({
-              subject: subject || current?.subject || "",
-              body: `${current?.body || ""}${chunk}`,
-              history: current?.history || null,
+              subject: subject || (isFirstDelta ? "" : current?.subject || ""),
+              body: `${isFirstDelta ? "" : current?.body || ""}${chunk}`,
+              history: isFirstDelta ? null : current?.history || null,
             }));
           },
           onDone: (result) => {
@@ -329,6 +463,7 @@ export function ComposerScreen({
           },
           onError: (message) => {
             if (requestRef.current !== requestId) return;
+            setDraft(previousDraft);
             onToast(message);
           },
         },
@@ -336,13 +471,16 @@ export function ComposerScreen({
       );
     } catch (error) {
       if (controller.signal.aborted) return;
+      setDraft(previousDraft);
       onToast(error instanceof Error ? error.message : "초안 생성에 실패했습니다.");
     } finally {
       if (requestRef.current === requestId) setGenerating(false);
     }
   }, [
     brief,
-    canGenerate,
+    canRequestGenerate,
+    clearPendingDraftSave,
+    draft,
     lengthOption.value,
     onHistoryCreated,
     onToast,
@@ -371,11 +509,14 @@ export function ComposerScreen({
   }, [currentBody, onToast]);
 
   const send = useCallback(async () => {
-    if (!draft?.body || sending) return;
+    if (!draft?.subject.trim() || !draft?.body.trim() || sendingRef.current) {
+      return;
+    }
     if (!replyContext && !persona?.email) {
       onToast("받는 사람 이메일이 필요합니다.");
       return;
     }
+    sendingRef.current = true;
     setSending(true);
     try {
       const result = await api.send({
@@ -388,16 +529,54 @@ export function ComposerScreen({
       if (result.history) {
         onHistoryUpdated(result.history);
         setDraft((current) =>
-          current ? { ...current, history: result.history } : current,
+          current
+            ? {
+                ...current,
+                subject: result.history?.subject ?? current.subject,
+                body: result.history?.body ?? current.body,
+                history: result.history,
+              }
+            : current,
         );
       }
       onToast("Gmail로 발송되었습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "메일 발송에 실패했습니다.");
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext, sending]);
+  }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext]);
+
+  const resetDraft = useCallback(async () => {
+    if (!draft || !canResetDraft) return;
+    if (!window.confirm("작성된 초안을 비울까요?")) return;
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    const historyId = draft.history?.id;
+    if (!historyId) {
+      setDraft({ ...draft, subject: "", body: "" });
+      setDraftSaveState("idle");
+      onToast("초안을 비웠습니다");
+      return;
+    }
+    setDraftSaveState("saving");
+    try {
+      const history = await api.resetHistoryDraft(historyId);
+      applyDraftHistory(history);
+      setDraftSaveState("saved");
+      onToast("초안을 비웠습니다");
+    } catch (error) {
+      setDraftSaveState("error");
+      onToast(error instanceof Error ? error.message : "초안을 비우지 못했습니다.");
+    }
+  }, [
+    applyDraftHistory,
+    canResetDraft,
+    clearPendingDraftSave,
+    draft,
+    onToast,
+  ]);
 
   return (
     <div className="page">
@@ -408,6 +587,7 @@ export function ComposerScreen({
           personas={personas}
           onPick={setSelectedId}
           replyContext={replyContext}
+          locked={generating}
         />
       </div>
 
@@ -424,6 +604,7 @@ export function ComposerScreen({
             type="button"
             className="btn-secondary reply-context-clear"
             onClick={onClearReplyContext}
+            disabled={generating}
           >
             제거
           </button>
@@ -444,6 +625,8 @@ export function ComposerScreen({
             value={brief}
             onChange={(event) => setBrief(event.target.value)}
             placeholder="예: 결제 모듈 일정이 하루 정도 지연될 것 같음. 내일까지 완료 가능."
+            readOnly={generating}
+            aria-disabled={generating}
             data-testid="brief-input"
           />
 
@@ -453,12 +636,14 @@ export function ComposerScreen({
               options={TONE_SCALE}
               value={tone}
               onChange={setTone}
+              disabled={generating}
             />
             <Knob
               label="길이"
               options={LENGTH_SCALE}
               value={length}
               onChange={setLength}
+              disabled={generating}
             />
           </div>
 
@@ -487,7 +672,7 @@ export function ComposerScreen({
               type="button"
               className="btn-primary"
               onClick={runGenerate}
-              disabled={!canGenerate || generating}
+              disabled={!canRequestGenerate}
               data-testid="generate-btn"
             >
               <IconSparkle size={14} />
@@ -519,7 +704,7 @@ export function ComposerScreen({
                 className="icon-btn"
                 onClick={runGenerate}
                 aria-label="다시 생성"
-                disabled={!canGenerate || generating}
+                disabled={!canRequestGenerate}
               >
                 <IconRefresh size={15} />
               </button>
@@ -532,26 +717,94 @@ export function ComposerScreen({
               >
                 <IconCopy size={15} />
               </button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => void resetDraft()}
+                aria-label="초안 비우기"
+                disabled={!canResetDraft}
+              >
+                <IconClose size={15} />
+              </button>
             </div>
           </div>
 
-          {draft?.subject && (
+          {(draft?.subject || (!generating && draft)) && (
             <div className="result-subject">
               <span>제목</span>
-              <b>{draft.subject}</b>
+              {generating ? (
+                <b>{currentSubject}</b>
+              ) : (
+                <input
+                  aria-label="작성 결과 제목 편집"
+                  data-testid="result-subject"
+                  value={currentSubject}
+                  onChange={(event) => editDraftSubject(event.target.value)}
+                  readOnly={!canEditDraft}
+                  placeholder="제목을 입력하세요"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: 0,
+                    background: "transparent",
+                    color: "var(--text)",
+                    font: "inherit",
+                    fontWeight: 600,
+                    outline: "none",
+                    padding: 0,
+                  }}
+                />
+              )}
             </div>
           )}
 
-          <div className="result-body thin-scroll" data-testid="result-body">
-            {currentBody}
-            {generating && <span className="cursor" aria-hidden />}
-          </div>
+          {generating ? (
+            <div className="result-body thin-scroll" data-testid="result-body">
+              {currentBody}
+              <span className="cursor" aria-hidden />
+            </div>
+          ) : (
+            <textarea
+              className="result-body thin-scroll"
+              data-testid="result-body"
+              aria-label="작성 결과 본문 편집"
+              value={currentBody}
+              onChange={(event) => editDraftBody(event.target.value)}
+              readOnly={!canEditDraft}
+              style={{
+                width: "100%",
+                border: 0,
+                background: "transparent",
+                outline: "none",
+                resize: "vertical",
+                display: "block",
+                fontFamily: "inherit",
+              }}
+            />
+          )}
 
           <div className="result-analysis">
             <span className="analysis-label">반영</span>
             <span className="tag amber">{toneLabel}</span>
             <span className="tag green">{lengthLabel}</span>
             {replyContext && <span className="tag blue">답장 컨텍스트</span>}
+            {draft?.history?.id && draft.history.status !== "sent" && (
+              <span
+                className={`tag ${
+                  draftSaveState === "error"
+                    ? "amber"
+                    : draftSaveState === "saving"
+                      ? "gray"
+                      : "green"
+                }`}
+              >
+                {draftSaveState === "saving"
+                  ? "저장 중"
+                  : draftSaveState === "error"
+                    ? "저장 실패"
+                    : "수동 편집 가능"}
+              </span>
+            )}
             {draft?.history?.status && (
               <span className={`tag ${draft.history.status === "sent" ? "green" : "gray"}`}>
                 {draft.history.status}
@@ -572,12 +825,23 @@ export function ComposerScreen({
             <button
               type="button"
               className="btn-secondary"
+              onClick={() => void resetDraft()}
+              disabled={!canResetDraft}
+            >
+              <IconClose size={14} /> 비우기
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
               onClick={copy}
               disabled={!currentBody}
             >
               <IconCopy size={14} /> 복사
             </button>
-            {!replyContext && !persona?.email && (
+            {!replyContext && !persona && (
+              <span className="send-warning">받는 사람 선택 후 발송 가능</span>
+            )}
+            {!replyContext && persona && !persona.email && (
               <span className="send-warning">이메일 추가 후 발송 가능</span>
             )}
             <button

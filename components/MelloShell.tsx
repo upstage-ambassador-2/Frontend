@@ -6,13 +6,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MELLO_SCENARIOS, normalizePersonaTone } from "@/lib/data";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
-import { api, type MeResponse, type ReplyContext } from "@/lib/api";
+import {
+  SESSION_EXPIRED_EVENT,
+  api,
+  type MeResponse,
+  type ReplyContext,
+} from "@/lib/api";
 import { normalizeEmailAddress } from "@/lib/email";
 import {
   hrefForRoute,
@@ -89,6 +95,7 @@ type MelloContextValue = {
   handleReply: (context: ReplyContext) => void;
   handleLogout: () => Promise<void>;
   replaceHistory: (item: HistoryItem) => void;
+  removeHistory: (id: string) => void;
 };
 
 const MelloContext = createContext<MelloContextValue | null>(null);
@@ -120,10 +127,10 @@ export function MelloShell({
   const router = useRouter();
   const route = routeFromPathname(pathname);
   const routePersonaId = personaIdFromPathname(pathname);
-  const firstPersona = initialPersonas[0];
   const initialPersona =
-    initialPersonas.find((persona) => persona.id === routePersonaId) ??
-    firstPersona;
+    routePersonaId != null
+      ? initialPersonas.find((persona) => persona.id === routePersonaId)
+      : undefined;
 
   const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
   const [history, setHistory] = useState<HistoryItem[]>(initialHistory);
@@ -139,9 +146,10 @@ export function MelloShell({
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const sessionExpiredRedirectRef = useRef(false);
 
   const currentPerson = useMemo(
-    () => personas.find((p) => p.id === selectedId) ?? personas[0],
+    () => personas.find((p) => p.id === selectedId),
     [personas, selectedId],
   );
 
@@ -153,6 +161,20 @@ export function MelloShell({
       1800,
     );
   }, []);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      if (sessionExpiredRedirectRef.current) return;
+      sessionExpiredRedirectRef.current = true;
+      router.replace("/login?auth_error=session_expired");
+      router.refresh();
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    };
+  }, [router]);
 
   const applyPersona = useCallback(
     (id: string, { clearReply }: { clearReply: boolean }) => {
@@ -172,6 +194,17 @@ export function MelloShell({
     }
     applyPersona(routePersonaId, { clearReply: true });
   }, [applyPersona, route, routePersonaId, selectedId]);
+
+  useEffect(() => {
+    if (pathname !== "/compose" || !selectedId) {
+      return;
+    }
+    setSelectedIdState("");
+    setTone(presetTone(undefined));
+    setLength(presetLength(undefined));
+    setBrief("");
+    setReplyContext(null);
+  }, [pathname, selectedId]);
 
   const setSelectedId = useCallback(
     (id: string) => {
@@ -197,6 +230,12 @@ export function MelloShell({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const focusHistorySearch = useCallback(() => {
+    document
+      .querySelector<HTMLInputElement>('[aria-label="히스토리 검색"]')
+      ?.focus();
   }, []);
 
   const closeMobileDrawer = useCallback(() => {
@@ -238,14 +277,6 @@ export function MelloShell({
     return [labelForRoute(route), null];
   }, [currentPerson, replyContext, route]);
 
-  const resetCompose = useCallback(() => {
-    const persona = personas.find((p) => p.id === selectedId);
-    setReplyContext(null);
-    setBrief(MELLO_SCENARIOS[selectedId]?.brief || "");
-    setTone(presetTone(persona));
-    setLength(presetLength(persona));
-  }, [personas, selectedId]);
-
   const handleReply = useCallback(
     (context: ReplyContext) => {
       const senderEmail = normalizeEmailAddress(context.fromAddr);
@@ -285,6 +316,10 @@ export function MelloShell({
     });
   }, []);
 
+  const removeHistory = useCallback((id: string) => {
+    setHistory((items) => items.filter((item) => item.id !== id));
+  }, []);
+
   const value = useMemo<MelloContextValue>(
     () => ({
       me: initialMe,
@@ -308,6 +343,7 @@ export function MelloShell({
       handleReply,
       handleLogout,
       replaceHistory,
+      removeHistory,
     }),
     [
       brief,
@@ -320,6 +356,7 @@ export function MelloShell({
       personas,
       replyContext,
       openPersonaCompose,
+      removeHistory,
       replaceHistory,
       selectedId,
       setSelectedId,
@@ -343,6 +380,7 @@ export function MelloShell({
         />
         <Sidebar
           personas={personas}
+          history={history}
           route={route}
           selectedId={selectedId}
           onPickPerson={openPersonaCompose}
@@ -356,8 +394,8 @@ export function MelloShell({
           <Topbar
             route={route}
             crumb={crumb}
-            onResetCompose={resetCompose}
             onOpenMobileMenu={() => setMobileDrawerOpen(true)}
+            onFocusHistorySearch={focusHistorySearch}
             mobileMenuOpen={mobileDrawerOpen}
           />
 

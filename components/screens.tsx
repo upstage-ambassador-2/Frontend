@@ -22,15 +22,17 @@ import {
   GMAIL_PAGE_SIZE_OPTIONS,
   api,
   normalizeGmailPageSize,
+  startGoogleLogin,
   type GmailMessage,
   type MeResponse,
   type PaginatedGmailMessages,
   type PersonaPayload,
 } from "@/lib/api";
-import { extractEmailAddress } from "@/lib/email";
+import { extractEmailAddress, normalizeEmailAddress } from "@/lib/email";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
+  IconChevron,
   IconClose,
   IconFormat,
   IconHistory,
@@ -39,6 +41,7 @@ import {
   IconRefresh,
   IconSearch,
   IconSend,
+  IconSparkle,
 } from "./icons";
 
 function PageTitle({
@@ -97,6 +100,12 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
+function isValidOptionalEmail(value: string) {
+  const email = value.trim();
+  if (!email) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function draftFromPersona(persona: Persona): PersonaDraft {
   return {
     id: persona.id,
@@ -131,15 +140,19 @@ function serializeDraft(draft: PersonaDraft | null) {
 function PersonaDialog({
   draft,
   saving,
+  structuring,
   onChange,
   onCancel,
   onSave,
+  onStructure,
 }: {
   draft: PersonaDraft;
   saving: boolean;
+  structuring: boolean;
   onChange: (draft: PersonaDraft) => void;
   onCancel: () => void;
   onSave: () => void;
+  onStructure: () => void;
 }) {
   const nameRef = useRef<HTMLInputElement>(null);
   const title = draft.id ? "사람 수정" : "사람 추가";
@@ -199,6 +212,9 @@ function PersonaDialog({
             <label>
               <span>이메일 (선택)</span>
               <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
                 value={draft.email}
                 onChange={(event) => onChange({ ...draft, email: event.target.value })}
                 placeholder="lead@example.com"
@@ -267,7 +283,18 @@ function PersonaDialog({
               />
             </label>
             <label className="span-2">
-              <span>메모</span>
+              <span className="row between">
+                <span>메모</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={onStructure}
+                  disabled={saving || structuring || !draft.notes.trim()}
+                >
+                  <IconSparkle size={13} />
+                  {structuring ? "정리 중" : "AI 정리"}
+                </button>
+              </span>
               <textarea
                 value={draft.notes}
                 onChange={(event) => onChange({ ...draft, notes: event.target.value })}
@@ -341,6 +368,18 @@ function parseInboxSender(value: string) {
   };
 }
 
+function inboxSenderFromMessage(message: GmailMessage) {
+  const fallback = parseInboxSender(message.fromAddr || message.from || "");
+  return {
+    name:
+      decodeHtmlEntities(message.senderName).trim() ||
+      fallback.name ||
+      message.senderEmail ||
+      "알 수 없는 발신자",
+    email: normalizeEmailAddress(message.senderEmail) || fallback.email,
+  };
+}
+
 const inboxMonthNumbers: Record<string, string> = {
   jan: "01",
   feb: "02",
@@ -407,6 +446,7 @@ export function PeopleScreen({
   const [draft, setDraft] = useState<PersonaDraft | null>(null);
   const [initialDraft, setInitialDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [structuring, setStructuring] = useState(false);
   const connectedCount = useMemo(
     () => personas.filter((persona) => !!personaEmail(persona)).length,
     [personas],
@@ -433,6 +473,10 @@ export function PeopleScreen({
       onToast("이름은 필수입니다");
       return;
     }
+    if (!isValidOptionalEmail(draft.email)) {
+      onToast("이메일 형식을 확인해주세요");
+      return;
+    }
     setSaving(true);
     try {
       const payload: PersonaPayload = {
@@ -440,7 +484,7 @@ export function PeopleScreen({
         relation: draft.relation.trim(),
         tone: normalizePersonaTone(draft.tone),
         notes: draft.notes.trim(),
-        email: draft.email.trim(),
+        email: draft.email.trim() || null,
         role: draft.role.trim(),
         keywords: splitList(draft.keywords),
         avoid: splitList(draft.avoid),
@@ -462,6 +506,34 @@ export function PeopleScreen({
       onToast(error instanceof Error ? error.message : "저장하지 못했습니다");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const structureDraft = async () => {
+    if (!draft?.notes.trim()) {
+      onToast("정리할 메모를 입력해주세요");
+      return;
+    }
+    setStructuring(true);
+    try {
+      const result = await api.structurePersona(draft.notes);
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              tone: normalizePersonaTone(result.tone),
+              notes: result.notes || current.notes,
+              keywords: result.keywords.join(", "),
+              avoid: result.avoid.join(", "),
+              prefer: result.prefer,
+            }
+          : current,
+      );
+      onToast("페르소나 메모를 정리했습니다");
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "페르소나 메모를 정리하지 못했습니다");
+    } finally {
+      setStructuring(false);
     }
   };
 
@@ -520,9 +592,11 @@ export function PeopleScreen({
         <PersonaDialog
           draft={draft}
           saving={saving}
+          structuring={structuring}
           onChange={setDraft}
           onCancel={closeDraft}
           onSave={() => void save()}
+          onStructure={() => void structureDraft()}
         />
       )}
 
@@ -628,7 +702,7 @@ export function InboxScreen({
   const messages = useMemo(
     () =>
       initialPage.messages.map((message) => {
-        const sender = parseInboxSender(message.fromAddr || message.from || "");
+        const sender = inboxSenderFromMessage(message);
         return {
           ...message,
           sender,
@@ -759,6 +833,7 @@ export function InboxScreen({
             onClick={goPrevious}
             disabled={!canGoPrevious || busy}
           >
+            <IconChevron size={13} style={{ transform: "rotate(180deg)" }} />
             이전
           </button>
           <span className="inbox-page-label">
@@ -774,6 +849,7 @@ export function InboxScreen({
               <span className="result-spinner" aria-hidden />
             ) : null}
             다음
+            <IconChevron size={13} />
           </button>
         </div>
       </div>
@@ -825,39 +901,48 @@ export function InboxScreen({
   );
 }
 
+type HistoryDetailState = {
+  item?: HistoryItem;
+  isLoading: boolean;
+  error?: string;
+};
+
 export function HistoryScreen({
   history,
   personas,
+  onDeleted,
+  onToast,
 }: {
   history: HistoryItem[];
   personas: Persona[];
+  onDeleted: (id: string) => void;
+  onToast: (message: string) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterId, setFilterId] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [detailById, setDetailById] = useState<Record<string, HistoryDetailState>>(
+    {},
+  );
   const pmap = useMemo(
     () => Object.fromEntries(personas.map((persona) => [persona.id, persona])),
     [personas],
   );
-  const visibleHistory = useMemo(() => {
-    if (filterId === "all") return history;
-    if (filterId === "reply") {
-      return history.filter((item) => !!item.replyContextId);
-    }
-    return history.filter((item) => item.personaId === filterId);
-  }, [filterId, history]);
-
-  const targetFor = (item: HistoryItem) => {
+  const targetFor = useCallback((item: HistoryItem) => {
     const persona = item.personaId ? pmap[item.personaId] : undefined;
     const replyEmail = extractEmailAddress(item.replyFromAddr);
     const targetEmail =
       item.targetEmail ||
       item.personaEmail ||
       personaEmail(persona) ||
+      item.counterpartyEmail ||
       replyEmail ||
       "";
     const targetName =
       item.targetName ||
       item.personaName ||
+      item.counterpartyName ||
       persona?.name ||
       item.replyFromAddr ||
       "대상 미확인";
@@ -867,7 +952,112 @@ export function HistoryScreen({
       email: targetEmail,
       source: item.replyContextId ? "답장" : targetEmail ? "메일" : "이메일 없음",
     };
-  };
+  }, [pmap]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleHistory = useMemo(() => {
+    const filtered =
+      filterId === "all"
+        ? history
+        : filterId === "reply"
+          ? history.filter((item) => !!item.replyContextId)
+          : history.filter((item) => item.personaId === filterId);
+
+    if (!normalizedSearch) return filtered;
+
+    return filtered.filter((item) => {
+      const target = targetFor(item);
+      return [
+        item.subject,
+        item.subj,
+        item.prev,
+        item.body,
+        item.brief,
+        item.replySubject,
+        target.name,
+        target.email,
+        target.source,
+        item.status,
+        item.when,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+    });
+  }, [filterId, history, normalizedSearch, targetFor]);
+
+  useEffect(() => {
+    if (openId && !visibleHistory.some((item) => item.id === openId)) {
+      setOpenId(null);
+    }
+  }, [openId, visibleHistory]);
+
+  const handleHistoryToggle = useCallback(
+    (item: HistoryItem) => {
+      const isClosing = openId === item.id;
+      setOpenId(isClosing ? null : item.id);
+      if (isClosing) return;
+
+      const cachedDetail = detailById[item.id];
+      if (cachedDetail?.item || cachedDetail?.isLoading) return;
+
+      setDetailById((current) => ({
+        ...current,
+        [item.id]: {
+          ...current[item.id],
+          isLoading: true,
+          error: undefined,
+        },
+      }));
+
+      void api
+        .historyDetail(item.id)
+        .then((detail) => {
+          setDetailById((current) => ({
+            ...current,
+            [item.id]: {
+              item: detail,
+              isLoading: false,
+            },
+          }));
+        })
+        .catch((error: unknown) => {
+          setDetailById((current) => ({
+            ...current,
+            [item.id]: {
+              ...current[item.id],
+              isLoading: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "상세를 불러오지 못했습니다.",
+            },
+          }));
+        });
+    },
+    [detailById, openId],
+  );
+
+  const handleHistoryDelete = useCallback(
+    async (item: HistoryItem) => {
+      if (!window.confirm("이 히스토리를 삭제할까요?")) return;
+      setDeletingId(item.id);
+      try {
+        await api.deleteHistory(item.id);
+        setDetailById((current) => {
+          const { [item.id]: _removed, ...rest } = current;
+          return rest;
+        });
+        setOpenId((current) => (current === item.id ? null : current));
+        onDeleted(item.id);
+        onToast("히스토리를 삭제했습니다");
+      } catch (error) {
+        onToast(error instanceof Error ? error.message : "히스토리를 삭제하지 못했습니다.");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [onDeleted, onToast],
+  );
 
   return (
     <div className="page history-page">
@@ -892,9 +1082,16 @@ export function HistoryScreen({
                 <option value="reply">답장 기록</option>
               </select>
             </label>
-            <button type="button" className="btn-secondary">
-              <IconSearch size={13} /> 검색
-            </button>
+            <label className="history-filter history-search">
+              <IconSearch size={13} />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="제목, 본문, 사람 검색"
+                aria-label="히스토리 검색"
+              />
+            </label>
           </div>
         }
       />
@@ -912,13 +1109,21 @@ export function HistoryScreen({
           const subject = item.subject || item.subj || "제목 없음";
           const preview = item.prev || item.body || item.brief || "미리보기 없음";
           const status = item.status || "draft";
+          const toneMeta = [item.tone, item.length].filter(Boolean).join(" · ");
           const detailId = `history-detail-${item.id}`;
+          const detailState = detailById[item.id];
+          const detailItem = detailState?.item || item;
+          const detailTarget = targetFor(detailItem);
+          const detailSubject = detailItem.subject || detailItem.subj || subject;
+          const detailPreview =
+            detailItem.prev || detailItem.body || detailItem.brief || preview;
+          const detailBody = detailItem.body || detailPreview;
           return (
             <div key={item.id}>
               <button
                 type="button"
                 className="history-row history-button"
-                onClick={() => setOpenId(openId === item.id ? null : item.id)}
+                onClick={() => handleHistoryToggle(item)}
                 aria-expanded={openId === item.id}
                 aria-controls={detailId}
               >
@@ -945,6 +1150,7 @@ export function HistoryScreen({
                   <span className={`tag ${status === "sent" ? "green" : "gray"}`}>
                     {status}
                   </span>
+                  {toneMeta && <small>{toneMeta}</small>}
                 </div>
                 <div className="h-meta">{item.when}</div>
               </button>
@@ -953,10 +1159,19 @@ export function HistoryScreen({
                   id={detailId}
                   className="history-detail"
                   role="region"
-                  aria-label={`${subject} 상세`}
+                  aria-label={`${detailSubject} 상세`}
                 >
                   <div className="history-detail-head">
-                    <div className="history-detail-title">{subject}</div>
+                    <div className="history-detail-title">{detailSubject}</div>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => void handleHistoryDelete(detailItem)}
+                      disabled={deletingId === detailItem.id}
+                    >
+                      <IconClose size={13} />
+                      {deletingId === detailItem.id ? "삭제 중" : "삭제"}
+                    </button>
                     <button
                       type="button"
                       className="icon-btn history-detail-close"
@@ -967,17 +1182,27 @@ export function HistoryScreen({
                     </button>
                   </div>
                   <div className="history-detail-meta">
-                    <span>대상: {target.name}</span>
-                    <span>{target.email || target.source}</span>
+                    <span>대상: {detailTarget.name}</span>
+                    <span>{detailTarget.email || detailTarget.source}</span>
                   </div>
-                  <p>{item.body || preview}</p>
+                  {detailState?.isLoading ? (
+                    <p className="muted">상세를 불러오는 중입니다.</p>
+                  ) : detailState?.error ? (
+                    <p className="muted">상세를 불러오지 못했습니다.</p>
+                  ) : (
+                    <p>{detailBody}</p>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
         {visibleHistory.length === 0 && (
-          <div className="state-row">아직 작성한 메일이 없습니다.</div>
+          <div className="state-row">
+            {history.length === 0
+              ? "아직 작성한 메일이 없습니다."
+              : "검색 조건에 맞는 히스토리가 없습니다."}
+          </div>
         )}
       </div>
     </div>
@@ -1182,12 +1407,16 @@ function Row({
 function Integration({
   title,
   desc,
-  on,
+  statusLabel,
+  statusTone,
+  actionLabel,
   onClick,
 }: {
   title: string;
   desc: string;
-  on?: boolean;
+  statusLabel: string;
+  statusTone: "green" | "amber" | "gray";
+  actionLabel: string;
   onClick: () => void;
 }) {
   return (
@@ -1199,11 +1428,9 @@ function Integration({
         <div className="settings-integration-title">{title}</div>
         <div className="small muted">{desc}</div>
       </div>
-      <span className={`tag ${on ? "green" : "gray"}`}>
-        {on ? "연결됨" : "지원 예정"}
-      </span>
+      <span className={`tag ${statusTone}`}>{statusLabel}</span>
       <button type="button" className="btn-secondary" onClick={onClick}>
-        {on ? "관리" : "연결"}
+        {actionLabel}
       </button>
     </div>
   );
@@ -1226,8 +1453,19 @@ export function SettingsScreen({
       onToast(error instanceof Error ? error.message : "통합 상태를 처리하지 못했습니다");
     }
   };
+  const reauthorizeGoogle = async () => {
+    try {
+      window.location.href = await startGoogleLogin("/settings");
+    } catch (error) {
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
+  };
   const userName = me?.user.name || "로그인 사용자";
   const userEmail = me?.user.email || "mello@example.com";
+  const gmailConnected = !!me?.integrations.gmail;
+  const contactsConnected = !!me?.integrations.contacts;
 
   return (
     <div className="page settings-page">
@@ -1275,25 +1513,35 @@ export function SettingsScreen({
           <Integration
             title="Gmail"
             desc="받은편지함 조회 · 사용자 본인 명의 발송"
-            on={!!me?.integrations.gmail}
-            onClick={() => void planned("gmail")}
+            statusLabel={gmailConnected ? "연결됨" : "권한 필요"}
+            statusTone={gmailConnected ? "green" : "amber"}
+            actionLabel={gmailConnected ? "관리" : "재동의"}
+            onClick={gmailConnected ? () => void planned("gmail") : reauthorizeGoogle}
           />
           <Integration
             title="Google Contacts"
             desc="연락처를 페르소나 후보로 가져오기"
-            on={!!me?.integrations.contacts}
-            onClick={() => void planned("contacts")}
+            statusLabel={contactsConnected ? "연결됨" : "권한 필요"}
+            statusTone={contactsConnected ? "green" : "amber"}
+            actionLabel={contactsConnected ? "관리" : "재동의"}
+            onClick={
+              contactsConnected ? () => void planned("contacts") : reauthorizeGoogle
+            }
           />
           <Integration
             title="Slack"
             desc="DM 톤 맞춰 전송"
-            on={false}
+            statusLabel="지원 예정"
+            statusTone="gray"
+            actionLabel="연결"
             onClick={() => void planned("slack")}
           />
           <Integration
             title="Notion"
             desc="작성 결과를 페이지로 저장"
-            on={false}
+            statusLabel="지원 예정"
+            statusTone="gray"
+            actionLabel="연결"
             onClick={() => void planned("notion")}
           />
         </div>

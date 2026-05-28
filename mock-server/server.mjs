@@ -29,6 +29,18 @@ const emailFromAddress = (value = "") => {
   return email.includes("@") ? email : "";
 };
 const normalizedEmail = (value = "") => emailFromAddress(value).toLowerCase();
+const normalizedName = (value = "") =>
+  String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+const senderNameFromAddress = (value = "") => {
+  const text = String(value || "").trim();
+  const match = text.match(/^(.*?)\s*<[^>]+>$/);
+  return (match?.[1] || "").trim().replace(/^"|"$/g, "");
+};
 const PERSONA_TONE_VALUES = new Set([
   "매우 격식",
   "격식",
@@ -225,6 +237,7 @@ let history = [
     when: "오늘 14:02",
     createdAt: minutesAgo(180),
     sentAt: null,
+    gmailMessageId: null,
     subj: "[공유] 결제 모듈 QA 결과",
     prev: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정…",
   },
@@ -421,14 +434,49 @@ function lengthLabel(value) {
 
 function historyOut(item) {
   const preview = item.body.replace(/\n/g, " ").slice(0, 120);
+  const { gmailMessageId, ...output } = item;
   return {
-    ...item,
+    ...output,
     subj: item.subject,
     prev: preview,
   };
 }
 
+function historyMatchesEmail(item, email) {
+  const candidates = [
+    item.personaEmail,
+    item.counterpartyEmail,
+    item.replyFromAddr,
+    item.targetEmail,
+  ];
+  return candidates.some((candidate) => normalizedEmail(candidate) === email);
+}
+
+function senderMetadata(message) {
+  const senderEmail = normalizedEmail(message.fromAddr || message.from);
+  const persona = senderEmail
+    ? personas.find((item) => normalizedEmail(item.email) === senderEmail)
+    : null;
+  return {
+    senderEmail,
+    senderName:
+      senderNameFromAddress(message.fromAddr || message.from) ||
+      senderEmail.split("@")[0] ||
+      null,
+    personaId: persona?.id || null,
+    persona: persona || null,
+  };
+}
+
+function gmailMessageOut(message) {
+  return {
+    ...message,
+    ...senderMetadata(message),
+  };
+}
+
 function upsertReplyContext(message) {
+  const metadata = senderMetadata(message);
   let context = replyContexts.find((item) => item.gmailMessageId === message.id);
   if (!context) {
     context = {
@@ -443,10 +491,31 @@ function upsertReplyContext(message) {
       messageId: message.messageId,
       references: message.references,
       date: message.date,
+      senderEmail: metadata.senderEmail,
+      senderName: metadata.senderName,
+      personaId: metadata.personaId,
+      persona: metadata.persona,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
     replyContexts.push(context);
+  } else {
+    Object.assign(context, {
+      fromAddr: message.fromAddr,
+      from: message.fromAddr,
+      subject: message.subject,
+      snippet: message.snippet,
+      rawBody: message.rawBody,
+      threadId: message.threadId,
+      messageId: message.messageId,
+      references: message.references,
+      date: message.date,
+      senderEmail: metadata.senderEmail,
+      senderName: metadata.senderName,
+      personaId: metadata.personaId,
+      persona: metadata.persona,
+      updatedAt: nowIso(),
+    });
   }
   return context;
 }
@@ -489,6 +558,76 @@ function buildDraft(payload) {
   };
 }
 
+function normalizeTextForMatch(value = "") {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function ensureSignature(body = "") {
+  const signature = String(mailFormat.signature || "").trim();
+  const draftBody = String(body || "").trim();
+  if (!signature) return draftBody;
+  if (normalizeTextForMatch(draftBody).includes(normalizeTextForMatch(signature))) {
+    return draftBody;
+  }
+  return `${draftBody}\n\n${signature}`;
+}
+
+function forbiddenTermsInDraft(persona, subject = "", body = "") {
+  if (!persona?.avoid?.length) return [];
+  const haystack = normalizeTextForMatch(`${subject}\n${body}`);
+  return persona.avoid.filter((term) => {
+    const normalized = normalizeTextForMatch(term);
+    return normalized && haystack.includes(normalized);
+  });
+}
+
+function personaForSend(item, to) {
+  if (item?.personaId) {
+    const linked = personas.find((persona) => persona.id === item.personaId);
+    if (linked) return linked;
+  }
+  const toEmail = normalizedEmail(to);
+  if (!toEmail) return null;
+  return personas.find((persona) => normalizedEmail(persona.email) === toEmail) || null;
+}
+
+function applySendGuardrails({ item, to, subject, body }) {
+  const persona = personaForSend(item, to);
+  const guardedBody = ensureSignature(body);
+  const forbiddenTerms = forbiddenTermsInDraft(persona, subject, guardedBody);
+  if (forbiddenTerms.length) {
+    return {
+      ok: false,
+      detail: `발송하려는 내용에 피해야 할 표현이 포함되었습니다: ${forbiddenTerms
+        .slice(0, 3)
+        .join(", ")}. 수정 후 다시 보내주세요.`,
+    };
+  }
+  return {
+    ok: true,
+    subject: String(subject || "").trim(),
+    body: guardedBody,
+  };
+}
+
+function applyGenerationGuardrails({ persona, subject, body }) {
+  const guardedBody = ensureSignature(body);
+  const forbiddenTerms = forbiddenTermsInDraft(persona, subject, guardedBody);
+  if (forbiddenTerms.length) {
+    return {
+      ok: false,
+      detail: `생성 결과에 피해야 할 표현이 포함되었습니다: ${forbiddenTerms
+        .slice(0, 3)
+        .join(", ")}. 다시 생성해주세요.`,
+    };
+  }
+  return {
+    ok: true,
+    subject: String(subject || "").trim(),
+    body: guardedBody,
+  };
+}
+
 async function streamDraft(req, res, payload) {
   const personaId = payload.personaId || payload.persona_id || null;
   let replyContextId = payload.replyContextId || payload.reply_context_id || null;
@@ -510,6 +649,27 @@ async function streamDraft(req, res, payload) {
   const draft = buildDraft(normalizedPayload);
   const persona = personas.find((item) => item.id === personaId);
   const replyContext = replyContexts.find((item) => item.id === replyContextId);
+  const guardedDraft = applyGenerationGuardrails({
+    persona,
+    subject: draft.subject,
+    body: draft.body,
+  });
+  if (!guardedDraft.ok) {
+    res.writeHead(200, {
+      ...corsHeaders(req),
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    });
+    res.write(
+      `event: error\ndata: ${JSON.stringify({
+        detail: guardedDraft.detail,
+        status: 502,
+      })}\n\n`,
+    );
+    res.end();
+    return;
+  }
   const replyEmail = emailFromAddress(replyContext?.fromAddr);
   const replyMatchesPersona =
     !!replyEmail &&
@@ -530,8 +690,8 @@ async function streamDraft(req, res, payload) {
     replyFromAddr: replyContext?.fromAddr || null,
     replySubject: replyContext?.subject || null,
     brief: payload.brief || "",
-    subject: draft.subject,
-    body: draft.body,
+    subject: guardedDraft.subject,
+    body: guardedDraft.body,
     status: "draft",
     tone: toneLabel(payload.tone ?? 50),
     toneValue: payload.tone ?? 50,
@@ -540,8 +700,9 @@ async function streamDraft(req, res, payload) {
     when: "방금 전",
     createdAt: nowIso(),
     sentAt: null,
-    subj: draft.subject,
-    prev: draft.body.replace(/\n/g, " ").slice(0, 120),
+    gmailMessageId: null,
+    subj: guardedDraft.subject,
+    prev: guardedDraft.body.replace(/\n/g, " ").slice(0, 120),
   };
   history = [item, ...history];
 
@@ -552,11 +713,13 @@ async function streamDraft(req, res, payload) {
     Connection: "keep-alive",
   });
 
-  const chunks = draft.body.match(/.{1,18}(\s|$)|.+/gs) || [draft.body];
+  const chunks = guardedDraft.body.match(/.{1,18}(\s|$)|.+/gs) || [
+    guardedDraft.body,
+  ];
   for (let index = 0; index < chunks.length; index += 1) {
     res.write(
       `event: delta\ndata: ${JSON.stringify({
-        subject: draft.subject,
+        subject: guardedDraft.subject,
         text: chunks[index],
       })}\n\n`,
     );
@@ -564,8 +727,8 @@ async function streamDraft(req, res, payload) {
   }
   res.write(
     `event: done\ndata: ${JSON.stringify({
-      subject: draft.subject,
-      body: draft.body,
+      subject: guardedDraft.subject,
+      body: guardedDraft.body,
       history: historyOut(item),
     })}\n\n`,
   );
@@ -645,6 +808,11 @@ async function handler(req, res) {
   try {
     if (req.method === "GET" && path === "/health") {
       sendJson(res, 200, { status: "ok" }, headers);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/health/ready") {
+      sendJson(res, 200, { status: "ok", database: "ok" }, headers);
       return;
     }
 
@@ -732,12 +900,46 @@ async function handler(req, res) {
         ? personas.find((item) => normalizedEmail(item.email) === email)
         : null;
       if (existing) {
-        sendJson(res, 200, existing, headers);
+        sendJson(res, 409, { detail: "이미 등록된 이메일입니다." }, headers);
         return;
       }
       const persona = applyPersonaFields({ id: `p-${randomUUID()}` }, payload);
       personas = [persona, ...personas];
       sendJson(res, 201, persona, headers);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/personas/structure") {
+      const payload = await readBody(req);
+      const text = String(payload.text || "").trim();
+      if (!text) {
+        sendJson(res, 422, { detail: "분석할 페르소나 메모가 필요합니다." }, headers);
+        return;
+      }
+      const tone = normalizePersonaTone(text);
+      const keywords = [
+        text.includes("결론") ? "결론 먼저" : "",
+        text.includes("일정") ? "일정 중시" : "",
+        text.includes("감정") || text.includes("따뜻") ? "감정 배려" : "",
+      ].filter(Boolean);
+      const avoid = [
+        text.includes("모호") ? "모호한 표현" : "",
+        text.includes("변명") ? "변명조 표현" : "",
+      ].filter(Boolean);
+      sendJson(
+        res,
+        200,
+        {
+          tone,
+          keywords: keywords.length ? keywords : ["핵심 요약"],
+          avoid,
+          prefer: text.includes("결론")
+            ? "결론 → 일정 → 근거 순서"
+            : "맥락 → 요청 → 마무리 순서",
+          notes: text.slice(0, 500),
+        },
+        headers,
+      );
       return;
     }
 
@@ -750,6 +952,16 @@ async function handler(req, res) {
         sendJson(res, 404, { detail: "페르소나를 찾을 수 없습니다." }, headers);
         return;
       }
+      const email = normalizedEmail(payload.email);
+      const duplicate = email
+        ? personas.find(
+            (item) => item.id !== id && normalizedEmail(item.email) === email,
+          )
+        : null;
+      if (duplicate) {
+        sendJson(res, 409, { detail: "이미 등록된 이메일입니다." }, headers);
+        return;
+      }
       const updated = applyPersonaFields(existing, payload);
       personas = personas.map((item) => (item.id === id ? updated : item));
       sendJson(res, 200, updated, headers);
@@ -758,6 +970,24 @@ async function handler(req, res) {
 
     if (personaMatch && req.method === "DELETE") {
       const id = personaMatch[1];
+      const persona = personas.find((item) => item.id === id);
+      if (!persona) {
+        sendJson(res, 404, { detail: "페르소나를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      history = history.map((item) => {
+        if (item.personaId !== id) return item;
+        return {
+          ...item,
+          personaId: null,
+          targetName: item.targetName || persona.name,
+          targetEmail: item.targetEmail || persona.email || "",
+          personaName: item.personaName || persona.name,
+          personaEmail: item.personaEmail || persona.email || "",
+          counterpartyName: item.counterpartyName || persona.name,
+          counterpartyEmail: item.counterpartyEmail || persona.email || "",
+        };
+      });
       personas = personas.filter((item) => item.id !== id);
       sendNoContent(res, headers);
       return;
@@ -773,6 +1003,13 @@ async function handler(req, res) {
           email: "mentor@mello.test",
         },
         {
+          name: "김지훈   팀장",
+          relation: "Google Contacts",
+          tone: "중립",
+          notes: "이미 등록된 연락처와 이름이 같은 항목입니다.",
+          email: "lead-copy@mello.test",
+        },
+        {
           name: "한수민",
           relation: "Google Contacts",
           tone: "친근",
@@ -782,12 +1019,19 @@ async function handler(req, res) {
       ];
       let imported = 0;
       let skipped = 0;
+      const existingEmails = new Set(
+        personas.map((item) => normalizedEmail(item.email)).filter(Boolean),
+      );
+      const existingNames = new Set(
+        personas.map((item) => normalizedName(item.name)).filter(Boolean),
+      );
       for (const contact of contactPersonas) {
+        const contactEmail = normalizedEmail(contact.email);
+        const contactName = normalizedName(contact.name);
         if (
-          personas.some(
-            (item) =>
-              normalizedEmail(item.email) === normalizedEmail(contact.email),
-          )
+          !contactName ||
+          (contactEmail && existingEmails.has(contactEmail)) ||
+          existingNames.has(contactName)
         ) {
           skipped += 1;
           continue;
@@ -805,6 +1049,8 @@ async function handler(req, res) {
             contact,
           ),
         );
+        if (contactEmail) existingEmails.add(contactEmail);
+        existingNames.add(contactName);
         imported += 1;
       }
       sendJson(res, 200, { imported, skipped, personas }, headers);
@@ -824,7 +1070,65 @@ async function handler(req, res) {
     }
 
     if (req.method === "GET" && path === "/history") {
-      sendJson(res, 200, history.map(historyOut), headers);
+      const personaId = url.searchParams.get("personaId") || url.searchParams.get("persona_id");
+      const email = normalizedEmail(
+        url.searchParams.get("personaEmail") || url.searchParams.get("email") || "",
+      );
+      const filtered = history.filter((item) => {
+        if (personaId && item.personaId !== personaId) return false;
+        if (email && !historyMatchesEmail(item, email)) return false;
+        return true;
+      });
+      sendJson(res, 200, filtered.map(historyOut), headers);
+      return;
+    }
+
+    const historyDraftMatch = path.match(/^\/history\/([^/]+)\/draft$/);
+    if (historyDraftMatch && req.method === "PATCH") {
+      const item = history.find((entry) => entry.id === historyDraftMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      if (item.status === "sent") {
+        sendJson(
+          res,
+          409,
+          { detail: "발송 완료된 히스토리는 수정할 수 없습니다." },
+          headers,
+        );
+        return;
+      }
+      const payload = await readBody(req);
+      if (payload.subject === undefined && payload.body === undefined) {
+        sendJson(res, 422, { detail: "수정할 초안 내용이 필요합니다." }, headers);
+        return;
+      }
+      if (payload.subject !== undefined) item.subject = String(payload.subject);
+      if (payload.body !== undefined) item.body = String(payload.body);
+      sendJson(res, 200, historyOut(item), headers);
+      return;
+    }
+
+    const historyDraftResetMatch = path.match(/^\/history\/([^/]+)\/draft\/reset$/);
+    if (historyDraftResetMatch && req.method === "POST") {
+      const item = history.find((entry) => entry.id === historyDraftResetMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      if (item.status === "sent") {
+        sendJson(
+          res,
+          409,
+          { detail: "발송 완료된 히스토리는 수정할 수 없습니다." },
+          headers,
+        );
+        return;
+      }
+      item.subject = "";
+      item.body = "";
+      sendJson(res, 200, historyOut(item), headers);
       return;
     }
 
@@ -836,6 +1140,17 @@ async function handler(req, res) {
         return;
       }
       sendJson(res, 200, historyOut(item), headers);
+      return;
+    }
+
+    if (historyMatch && req.method === "DELETE") {
+      const item = history.find((entry) => entry.id === historyMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      history = history.filter((entry) => entry.id !== item.id);
+      sendNoContent(res, headers);
       return;
     }
 
@@ -859,7 +1174,7 @@ async function handler(req, res) {
         {
           messages: gmailMessages
             .slice(start, end)
-            .map(({ rawBody, ...message }) => message),
+            .map(({ rawBody, ...message }) => gmailMessageOut(message)),
           nextPageToken,
           resultSizeEstimate: gmailMessages.length,
           limit,
@@ -877,8 +1192,9 @@ async function handler(req, res) {
         sendJson(res, 404, { detail: "메일을 찾을 수 없습니다." }, headers);
         return;
       }
-      const replyContext = upsertReplyContext(message);
-      sendJson(res, 200, { ...message, replyContext }, headers);
+      const output = gmailMessageOut(message);
+      const replyContext = upsertReplyContext(output);
+      sendJson(res, 200, { ...output, replyContext }, headers);
       return;
     }
 
@@ -896,29 +1212,96 @@ async function handler(req, res) {
     if (req.method === "POST" && path === "/gmail/send") {
       const payload = await readBody(req);
       const historyId = payload.historyId || payload.history_id;
-      const replyContextId = payload.replyContextId || payload.reply_context_id;
       const item = history.find((entry) => entry.id === historyId);
-      if (item) {
-        item.status = "sent";
-        item.sentAt = nowIso();
+      if (historyId && !item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
       }
+      const replyContextId =
+        payload.replyContextId || payload.reply_context_id || item?.replyContextId;
       const replyContext = replyContexts.find(
         (context) => context.id === replyContextId,
       );
+      if (replyContextId && !replyContext) {
+        sendJson(
+          res,
+          404,
+          { detail: "답장 컨텍스트를 찾을 수 없습니다." },
+          headers,
+        );
+        return;
+      }
       const to = payload.to || replyContext?.fromAddr || "";
       if (!to) {
         sendJson(res, 422, { detail: "받는 사람 이메일이 필요합니다." }, headers);
         return;
       }
+      if (item?.status === "sent" && item.gmailMessageId) {
+        sendJson(
+          res,
+          200,
+          {
+            id: item.gmailMessageId,
+            threadId: null,
+            status: "sent",
+            history: historyOut(item),
+            raw: {
+              id: item.gmailMessageId,
+              deduplicated: true,
+            },
+          },
+          headers,
+        );
+        return;
+      }
+      const guardedDraft = applySendGuardrails({
+        item,
+        to,
+        subject: payload.subject,
+        body: payload.body,
+      });
+      if (!guardedDraft.ok) {
+        sendJson(res, 422, { detail: guardedDraft.detail }, headers);
+        return;
+      }
+      const sentId = `sent-${randomUUID()}`;
+      if (item) {
+        const sendPersona = personaForSend(item, to);
+        const normalizedTo = normalizedEmail(to);
+        item.subject = guardedDraft.subject;
+        item.body = guardedDraft.body;
+        item.status = "sent";
+        item.sentAt = nowIso();
+        item.gmailMessageId = sentId;
+        if (!item.personaId && sendPersona) item.personaId = sendPersona.id;
+        if (sendPersona) {
+          item.targetName = sendPersona.name;
+          item.targetEmail = sendPersona.email || normalizedTo || "";
+          item.personaName = sendPersona.name;
+          item.personaEmail = sendPersona.email || "";
+          item.counterpartyName = sendPersona.name;
+          item.counterpartyEmail = sendPersona.email || normalizedTo || "";
+        } else {
+          item.targetName =
+            item.targetName ||
+            (replyContext ? senderNameFromAddress(replyContext.fromAddr) : null);
+          item.targetEmail = item.targetEmail || normalizedTo || "";
+          item.counterpartyName =
+            item.counterpartyName ||
+            (replyContext ? senderNameFromAddress(replyContext.fromAddr) : null);
+          item.counterpartyEmail = item.counterpartyEmail || normalizedTo || "";
+        }
+      }
       sendJson(
         res,
         200,
         {
-          id: `sent-${randomUUID()}`,
+          id: sentId,
           threadId: replyContext?.threadId || null,
           status: "sent",
           history: item ? historyOut(item) : null,
           raw: {
+            id: sentId,
             from: user.email,
             to,
             cc: payload.cc || [],

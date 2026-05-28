@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Persona } from "@/lib/data";
+import type { HistoryItem, Persona } from "@/lib/data";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconCompose,
@@ -16,7 +16,7 @@ import {
   IconMail,
   IconClose,
 } from "./icons";
-import { composeHref, hrefForRoute, type Route } from "@/lib/routes";
+import { hrefForRoute, type Route } from "@/lib/routes";
 import type { User } from "@/lib/api";
 
 type NavItemProps = {
@@ -44,6 +44,7 @@ function NavItem({ icon, label, active, href, count, onNavigate }: NavItemProps)
 
 type Props = {
   personas: Persona[];
+  history: HistoryItem[];
   route: Route;
   selectedId: string;
   onPickPerson: (id: string) => void;
@@ -55,6 +56,7 @@ type Props = {
 
 export function Sidebar({
   personas,
+  history,
   route,
   selectedId,
   onPickPerson,
@@ -63,6 +65,63 @@ export function Sidebar({
   mobileOpen,
   onCloseMobile,
 }: Props) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const searchActive = normalizedSearch.length > 0;
+
+  const personaResults = useMemo(() => {
+    if (!normalizedSearch) return [];
+    return personas
+      .filter((persona) =>
+        [
+          persona.name,
+          persona.email,
+          persona.relation,
+          persona.role,
+          persona.mbti,
+          ...(persona.keywords || []),
+        ]
+          .filter(Boolean)
+          .some((value) =>
+            String(value).toLowerCase().includes(normalizedSearch),
+          ),
+      )
+      .slice(0, 5);
+  }, [normalizedSearch, personas]);
+
+  const historyResults = useMemo(() => {
+    if (!normalizedSearch) return [];
+    return history
+      .filter((item) =>
+        [
+          item.subject,
+          item.subj,
+          item.prev,
+          item.body,
+          item.brief,
+          item.replySubject,
+          item.targetName,
+          item.targetEmail,
+          item.personaName,
+          item.personaEmail,
+          item.counterpartyName,
+          item.counterpartyEmail,
+          item.replyFromAddr,
+          item.status,
+          item.when,
+        ]
+          .filter(Boolean)
+          .some((value) =>
+            String(value).toLowerCase().includes(normalizedSearch),
+          ),
+      )
+      .slice(0, 4);
+  }, [history, normalizedSearch]);
+
+  const clearSearch = () => setSearchQuery("");
+  const hasSearchResults =
+    personaResults.length > 0 || historyResults.length > 0;
+
   return (
     <aside
       id="app-sidebar"
@@ -92,16 +151,92 @@ export function Sidebar({
 
       <div className="side-search">
         <IconSearch size={13} />
-        <input placeholder="사람·기록 검색" aria-label="검색" />
+        <input
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="사람·기록 검색"
+          aria-label="검색"
+        />
         <kbd>⌘K</kbd>
       </div>
+
+      {searchActive && (
+        <div className="side-search-results" aria-label="검색 결과">
+          {personaResults.length > 0 && (
+            <div className="side-search-group">
+              <div className="side-search-label">사람</div>
+              {personaResults.map((persona) => (
+                <button
+                  key={persona.id}
+                  type="button"
+                  className="side-search-result"
+                  onClick={() => {
+                    clearSearch();
+                    onPickPerson(persona.id);
+                    onCloseMobile();
+                  }}
+                >
+                  <PersonaAvatar persona={persona} size={20} />
+                  <span className="side-search-result-copy">
+                    <span>{persona.name}</span>
+                    <small>
+                      {persona.email || persona.relation || "메일 없음"}
+                    </small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {historyResults.length > 0 && (
+            <div className="side-search-group">
+              <div className="side-search-label">히스토리</div>
+              {historyResults.map((item) => {
+                const subject = item.subject || item.subj || "제목 없음";
+                const target =
+                  item.targetName ||
+                  item.personaName ||
+                  item.counterpartyName ||
+                  item.targetEmail ||
+                  item.personaEmail ||
+                  item.counterpartyEmail ||
+                  "대상 미확인";
+                return (
+                  <Link
+                    key={item.id}
+                    href={hrefForRoute("history")}
+                    className="side-search-result"
+                    title={subject}
+                    onClick={() => {
+                      clearSearch();
+                      onCloseMobile();
+                    }}
+                  >
+                    <span className="avatar side-search-history-icon">
+                      <IconHistory size={12} />
+                    </span>
+                    <span className="side-search-result-copy">
+                      <span>{subject}</span>
+                      <small>{target}</small>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {!hasSearchResults && (
+            <div className="side-search-empty">검색 결과가 없습니다.</div>
+          )}
+        </div>
+      )}
 
       <nav className="side-nav" aria-label="주요 메뉴">
         <NavItem
           icon={<IconCompose size={14} />}
           label="작성"
           active={route === "compose"}
-          href={selectedId ? composeHref(selectedId) : hrefForRoute("compose")}
+          href={hrefForRoute("compose")}
           count="⌘N"
           onNavigate={onCloseMobile}
         />
@@ -155,6 +290,7 @@ export function Sidebar({
               (selectedId === p.id && route === "compose" ? " is-active" : "")
             }
             onClick={() => {
+              clearSearch();
               onPickPerson(p.id);
               onCloseMobile();
             }}
