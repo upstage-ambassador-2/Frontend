@@ -21,6 +21,7 @@ export default async function AppLayout({
       initialPersonas={initial.personas}
       initialHistory={initial.history}
       initialFormat={initial.format}
+      initialLoadErrors={initial.errors}
     >
       {children}
     </MelloShell>

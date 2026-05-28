@@ -434,11 +434,13 @@ function initialsFrom(value: string): string {
 
 export function PeopleScreen({
   personas,
+  loadError,
   onOpen,
   onChanged,
   onToast,
 }: {
   personas: Persona[];
+  loadError?: string;
   onOpen: (id: string) => void;
   onChanged: (items: Persona[]) => void;
   onToast: (message: string) => void;
@@ -588,6 +590,12 @@ export function PeopleScreen({
         </span>
       </div>
 
+      {loadError && (
+        <div className="state-row error-text" role="alert">
+          {loadError}
+        </div>
+      )}
+
       {draft && (
         <PersonaDialog
           draft={draft}
@@ -667,7 +675,7 @@ export function PeopleScreen({
             </div>
           );
         })}
-        {personas.length === 0 && (
+        {personas.length === 0 && !loadError && (
           <div className="empty-card">
             <IconPlus size={18} />
             <div>아직 등록된 페르소나가 없습니다.</div>
@@ -910,11 +918,13 @@ type HistoryDetailState = {
 export function HistoryScreen({
   history,
   personas,
+  loadError,
   onDeleted,
   onToast,
 }: {
   history: HistoryItem[];
   personas: Persona[];
+  loadError?: string;
   onDeleted: (id: string) => void;
   onToast: (message: string) => void;
 }) {
@@ -1097,6 +1107,11 @@ export function HistoryScreen({
       />
 
       <div className="card history-card">
+        {loadError && (
+          <div className="state-row error-text" role="alert">
+            {loadError}
+          </div>
+        )}
         <div className="history-row is-head">
           <span></span>
           <span>제목 / 미리보기</span>
@@ -1197,7 +1212,7 @@ export function HistoryScreen({
             </div>
           );
         })}
-        {visibleHistory.length === 0 && (
+        {visibleHistory.length === 0 && !loadError && (
           <div className="state-row">
             {history.length === 0
               ? "아직 작성한 메일이 없습니다."
@@ -1236,10 +1251,12 @@ function FormatSlot({
 
 export function FormatScreen({
   format,
+  loadError,
   onChanged,
   onToast,
 }: {
   format: MailFormat;
+  loadError?: string;
   onChanged: (format: MailFormat) => void;
   onToast: (message: string) => void;
 }) {
@@ -1292,6 +1309,12 @@ export function FormatScreen({
           )
         }
       />
+
+      {loadError && (
+        <div className="state-row error-text" role="alert">
+          {loadError}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-h">
