@@ -210,6 +210,17 @@ export function MelloShell({
     setReplyContext(null);
   }, [pathname, selectedId]);
 
+  useEffect(() => {
+    if (!pathname?.startsWith("/compose/reply/") || !selectedId) {
+      return;
+    }
+    setSelectedIdState("");
+    setTone(presetTone(undefined));
+    setLength(presetLength(undefined));
+    setBrief("");
+    setReplyContext(null);
+  }, [pathname, selectedId]);
+
   const setSelectedId = useCallback(
     (id: string) => {
       applyPersona(id, { clearReply: true });
