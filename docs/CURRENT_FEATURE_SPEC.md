@@ -268,12 +268,34 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
 - mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
+- mock server는 `GET /health`와 `GET /health/ready`를 제공해 프론트 rewrite와 운영 readiness 계약을 로컬에서 확인할 수 있다.
 
 ### 기능 효과
 실제 외부 API 없이 UI, SSR, API contract 회귀를 빠르게 확인할 수 있다.
 
 ### 연계 기능
 Frontend routes, mock data, manual QA
+
+## 11. 운영 Health/Readiness
+
+### 기능 명
+운영 Health/Readiness 라우팅
+
+### 기능 정의
+프론트엔드 배포 환경에서 동일 origin으로 백엔드 liveness와 database readiness endpoint를 확인할 수 있게 한다.
+
+### 기능 상세 동작
+- Next.js rewrite는 `GET /health`를 백엔드 liveness endpoint로 전달한다.
+- Next.js rewrite는 `GET /health/ready`를 백엔드 readiness endpoint로 전달한다.
+- mock server는 `GET /health`에 `{ "status": "ok" }`를 반환한다.
+- mock server는 `GET /health/ready`에 `{ "status": "ok", "database": "ok" }`를 반환한다.
+- readiness 응답은 백엔드가 Postgres 연결을 확인한 결과와 같은 contract를 사용한다.
+
+### 기능 효과
+Railway dev/prod smoke check와 로컬 mock 검증에서 앱 프로세스 상태와 DB 연결 상태를 구분해 확인할 수 있다.
+
+### 연계 기능
+Next.js rewrite, backend health endpoints, Railway deployment smoke check, mock server
 
 ## Deferred Items
 
