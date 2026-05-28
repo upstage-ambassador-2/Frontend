@@ -227,7 +227,8 @@ AI가 생성한 초안과 Gmail 발송 상태를 사용자별로 저장하고, H
 - detail panel의 삭제 버튼은 확인 후 `DELETE /history/{id}`를 호출하고, 성공 시 앱 shell의 history 목록에서 항목을 제거한다.
 - 닫기 버튼 또는 열린 row 재클릭으로 detail panel을 닫는다.
 - 필터/검색 변경으로 열린 row가 목록에서 사라지면 detail panel을 닫는다.
-- persona가 삭제되었거나 목록 응답에 persona 관계가 없더라도 `personaName`, `personaEmail`, `counterpartyName`, `counterpartyEmail`, `replyFromAddr` fallback으로 대상 정보를 표시한다.
+- History 생성/발송 시점에 persona와 counterparty 이름/이메일 스냅샷을 저장한다.
+- persona 삭제 시 연결된 history의 `personaId`는 해제하되 저장된 `personaName`, `personaEmail`, `counterpartyName`, `counterpartyEmail` fallback으로 대상 정보를 계속 표시한다.
 
 ### 기능 효과
 사용자는 생성 및 발송 기록을 추적하고, 목록 preview만으로 부족한 경우 전체 subject/body를 즉시 확인할 수 있다.
@@ -267,6 +268,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Gmail 목록/상세와 reply context는 `senderEmail`, `senderName`, `personaId`, `persona` 메타데이터를 포함한다.
 - mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
 - mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
+- mock persona 삭제는 백엔드와 동일하게 연결된 history의 persona relation을 해제하고 대상 스냅샷을 유지한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
 - mock server는 `GET /health`와 `GET /health/ready`를 제공해 프론트 rewrite와 운영 readiness 계약을 로컬에서 확인할 수 있다.
 
