@@ -330,6 +330,7 @@ export function ComposerScreen({
     !!draft && !generating && draft.history?.status !== "sent";
   const canResetDraft =
     canEditDraft && !sending && (!!draft?.subject.trim() || !!draft?.body.trim());
+  const currentSubject = draft?.subject || "";
   const currentBody = draft?.body || "";
 
   const clearPendingDraftSave = useCallback(() => {
@@ -392,6 +393,23 @@ export function ComposerScreen({
       setDraft((current) => {
         if (!current) return current;
         const next = { ...current, body };
+        const historyId = current.history?.id;
+        if (historyId && current.history?.status !== "sent") {
+          scheduleDraftSave(historyId, next.subject, next.body);
+        } else {
+          setDraftSaveState("idle");
+        }
+        return next;
+      });
+    },
+    [scheduleDraftSave],
+  );
+
+  const editDraftSubject = useCallback(
+    (subject: string) => {
+      setDraft((current) => {
+        if (!current) return current;
+        const next = { ...current, subject };
         const historyId = current.history?.id;
         if (historyId && current.history?.status !== "sent") {
           scheduleDraftSave(historyId, next.subject, next.body);
@@ -704,10 +722,32 @@ export function ComposerScreen({
             </div>
           </div>
 
-          {draft?.subject && (
+          {(draft?.subject || (!generating && draft)) && (
             <div className="result-subject">
               <span>제목</span>
-              <b>{draft.subject}</b>
+              {generating ? (
+                <b>{currentSubject}</b>
+              ) : (
+                <input
+                  aria-label="작성 결과 제목 편집"
+                  data-testid="result-subject"
+                  value={currentSubject}
+                  onChange={(event) => editDraftSubject(event.target.value)}
+                  readOnly={!canEditDraft}
+                  placeholder="제목을 입력하세요"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: 0,
+                    background: "transparent",
+                    color: "var(--text)",
+                    font: "inherit",
+                    fontWeight: 600,
+                    outline: "none",
+                    padding: 0,
+                  }}
+                />
+              )}
             </div>
           )}
 
