@@ -1622,6 +1622,7 @@ function Integration({
   statusTone,
   actionLabel,
   onClick,
+  disabled = false,
 }: {
   title: string;
   desc: string;
@@ -1629,6 +1630,7 @@ function Integration({
   statusTone: "green" | "amber" | "gray";
   actionLabel: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="settings-integration">
@@ -1640,7 +1642,12 @@ function Integration({
         <div className="small muted">{desc}</div>
       </div>
       <span className={`tag ${statusTone}`}>{statusLabel}</span>
-      <button type="button" className="btn-secondary" onClick={onClick}>
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={onClick}
+        disabled={disabled}
+      >
         {actionLabel}
       </button>
     </div>
@@ -1656,18 +1663,33 @@ export function SettingsScreen({
   onLogout: () => void;
   onToast: (message: string) => void;
 }) {
+  const [busyIntegration, setBusyIntegration] = useState<string | null>(null);
+  const busyIntegrationRef = useRef<string | null>(null);
+
+  const setIntegrationBusy = (value: string | null) => {
+    busyIntegrationRef.current = value;
+    setBusyIntegration(value);
+  };
+
   const planned = async (provider: string) => {
+    if (busyIntegrationRef.current) return;
+    setIntegrationBusy(provider);
     try {
       const result = await api.toggleIntegration(provider);
       onToast(result.message);
     } catch (error) {
       onToast(error instanceof Error ? error.message : "통합 상태를 처리하지 못했습니다");
+    } finally {
+      setIntegrationBusy(null);
     }
   };
   const reauthorizeGoogle = async () => {
+    if (busyIntegrationRef.current) return;
+    setIntegrationBusy("google");
     try {
       window.location.href = await startGoogleLogin("/settings");
     } catch (error) {
+      setIntegrationBusy(null);
       onToast(
         error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
       );
@@ -1726,34 +1748,50 @@ export function SettingsScreen({
             desc="받은편지함 조회 · 사용자 본인 명의 발송"
             statusLabel={gmailConnected ? "연결됨" : "권한 필요"}
             statusTone={gmailConnected ? "green" : "amber"}
-            actionLabel={gmailConnected ? "관리" : "재동의"}
+            actionLabel={
+              busyIntegration === "google" && !gmailConnected
+                ? "재동의 중"
+                : gmailConnected
+                  ? "관리"
+                  : "재동의"
+            }
             onClick={gmailConnected ? () => void planned("gmail") : reauthorizeGoogle}
+            disabled={!!busyIntegration}
           />
           <Integration
             title="Google Contacts"
             desc="연락처를 페르소나 후보로 가져오기"
             statusLabel={contactsConnected ? "연결됨" : "권한 필요"}
             statusTone={contactsConnected ? "green" : "amber"}
-            actionLabel={contactsConnected ? "관리" : "재동의"}
+            actionLabel={
+              busyIntegration === "google" && !contactsConnected
+                ? "재동의 중"
+                : contactsConnected
+                  ? "관리"
+                  : "재동의"
+            }
             onClick={
               contactsConnected ? () => void planned("contacts") : reauthorizeGoogle
             }
+            disabled={!!busyIntegration}
           />
           <Integration
             title="Slack"
             desc="지원 예정 통합"
             statusLabel="지원 예정"
             statusTone="gray"
-            actionLabel="안내"
+            actionLabel={busyIntegration === "slack" ? "확인 중" : "안내"}
             onClick={() => void planned("slack")}
+            disabled={!!busyIntegration}
           />
           <Integration
             title="Notion"
             desc="지원 예정 통합"
             statusLabel="지원 예정"
             statusTone="gray"
-            actionLabel="안내"
+            actionLabel={busyIntegration === "notion" ? "확인 중" : "안내"}
             onClick={() => void planned("notion")}
+            disabled={!!busyIntegration}
           />
         </div>
       </div>
