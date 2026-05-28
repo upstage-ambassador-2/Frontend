@@ -742,6 +742,7 @@ async function streamDraft(req, res, payload) {
 function applyPersonaFields(base, payload) {
   const now = nowIso();
   const hasEmailField = Object.prototype.hasOwnProperty.call(payload, "email");
+  const hasMbtiField = Object.prototype.hasOwnProperty.call(payload, "mbti");
   const email = hasEmailField
     ? String(payload.email || "").trim()
     : base.email || "";
@@ -773,7 +774,12 @@ function applyPersonaFields(base, payload) {
     role: Object.prototype.hasOwnProperty.call(payload, "role")
       ? String(payload.role || "").trim()
       : base.role || "",
-    mbti: base.mbti || "",
+    mbti: hasMbtiField
+      ? String(payload.mbti || "")
+          .trim()
+          .toUpperCase()
+          .slice(0, 4)
+      : base.mbti || "",
     avatar:
       base.avatar ||
       (payload.name || base.name)
@@ -941,6 +947,35 @@ async function handler(req, res) {
             ? "결론 → 일정 → 근거 순서"
             : "맥락 → 요청 → 마무리 순서",
           notes: text.slice(0, 500),
+        },
+        headers,
+      );
+      return;
+    }
+
+    if (req.method === "POST" && path === "/personas/infer-mbti") {
+      const payload = await readBody(req);
+      const text = String(payload.text || "").trim();
+      if (!text) {
+        sendJson(res, 422, { detail: "MBTI 분석에 사용할 설명이 필요합니다." }, headers);
+        return;
+      }
+      const lower = text.toLowerCase();
+      const introverted = /혼자|내향|조용|정리|깊게|개인/.test(lower);
+      const intuitive = /큰 그림|미래|가능성|아이디어|직관|전략|장기/.test(lower);
+      const thinking = /논리|분석|객관|원칙|효율|근거/.test(lower);
+      const judging = /계획|일정|마감|정리|체계|결정/.test(lower);
+      const mbti = `${introverted ? "I" : "E"}${intuitive ? "N" : "S"}${thinking ? "T" : "F"}${judging ? "J" : "P"}`;
+      sendJson(
+        res,
+        200,
+        {
+          mbti,
+          confidence: text.length > 80 ? "high" : "medium",
+          rationale:
+            "입력한 설명을 공식 MBTI 네 선호축(E-I, S-N, T-F, J-P)에 맞춰 가장 가까운 유형으로 추정했습니다.",
+          sourceUrl:
+            "https://www.mbtionline.com/en-US/MBTI-Types/All-about-the-Myers-Briggs-types",
         },
         headers,
       );

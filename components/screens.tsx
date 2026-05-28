@@ -26,6 +26,7 @@ import {
   type GmailMessage,
   type MeResponse,
   type PaginatedGmailMessages,
+  type PersonaMbtiInferResult,
   type PersonaPayload,
 } from "@/lib/api";
 import { extractEmailAddress, normalizeEmailAddress } from "@/lib/email";
@@ -72,15 +73,37 @@ type PersonaDraft = {
   notes: string;
   email: string;
   role: string;
+  mbti: string;
   keywords: string;
   avoid: string;
   prefer: string;
 };
 
 type PersonaValidation = {
-  field: "name" | "email";
+  field: "name" | "email" | "mbti";
   message: string;
 };
+
+const MBTI_TYPES = [
+  "ISTJ",
+  "ISFJ",
+  "INFJ",
+  "INTJ",
+  "ISTP",
+  "ISFP",
+  "INFP",
+  "INTP",
+  "ESTP",
+  "ESFP",
+  "ENFP",
+  "ENTP",
+  "ESTJ",
+  "ESFJ",
+  "ENFJ",
+  "ENTJ",
+] as const;
+
+const MBTI_TYPE_SET = new Set<string>(MBTI_TYPES);
 
 const emptyPersona = (): PersonaDraft => ({
   name: "",
@@ -89,6 +112,7 @@ const emptyPersona = (): PersonaDraft => ({
   notes: "",
   email: "",
   role: "",
+  mbti: "",
   keywords: "",
   avoid: "",
   prefer: "",
@@ -111,12 +135,24 @@ function isValidOptionalEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function normalizeMbtiInput(value: string) {
+  return value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+}
+
+function isValidOptionalMbti(value: string) {
+  const mbti = normalizeMbtiInput(value);
+  return !mbti || MBTI_TYPE_SET.has(mbti);
+}
+
 function validatePersonaDraft(draft: PersonaDraft): PersonaValidation | null {
   if (!draft.name.trim()) {
     return { field: "name", message: "이름은 필수입니다." };
   }
   if (!isValidOptionalEmail(draft.email)) {
     return { field: "email", message: "이메일 형식을 확인해주세요." };
+  }
+  if (!isValidOptionalMbti(draft.mbti)) {
+    return { field: "mbti", message: "MBTI는 16가지 유형 중 하나로 입력해주세요." };
   }
   return null;
 }
@@ -130,6 +166,7 @@ function draftFromPersona(persona: Persona): PersonaDraft {
     notes: persona.notes || "",
     email: persona.email || "",
     role: persona.role || "",
+    mbti: normalizeMbtiInput(persona.mbti || ""),
     keywords: listText(persona.keywords),
     avoid: listText(persona.avoid),
     prefer: persona.prefer || "",
@@ -146,6 +183,7 @@ function serializeDraft(draft: PersonaDraft | null) {
     notes: draft.notes,
     email: draft.email,
     role: draft.role,
+    mbti: normalizeMbtiInput(draft.mbti),
     keywords: draft.keywords,
     avoid: draft.avoid,
     prefer: draft.prefer,
@@ -162,6 +200,8 @@ function PersonaDialog({
   onCancel,
   onSave,
   onStructure,
+  onToast,
+  onPatch,
 }: {
   draft: PersonaDraft;
   saving: boolean;
@@ -172,9 +212,35 @@ function PersonaDialog({
   onCancel: () => void;
   onSave: () => void;
   onStructure: () => void;
+  onToast: (message: string) => void;
+  onPatch: (patch: Partial<PersonaDraft>) => void;
 }) {
   const nameRef = useRef<HTMLInputElement>(null);
+  const [mbtiHelperOpen, setMbtiHelperOpen] = useState(false);
+  const [mbtiDescription, setMbtiDescription] = useState("");
+  const [analyzingMbti, setAnalyzingMbti] = useState(false);
+  const [mbtiAnalysis, setMbtiAnalysis] =
+    useState<PersonaMbtiInferResult | null>(null);
   const title = draft.id ? "사람 수정" : "사람 추가";
+
+  const analyzeMbti = async () => {
+    const text = mbtiDescription.trim();
+    if (!text) {
+      onToast("성향 설명을 입력해주세요");
+      return;
+    }
+    setAnalyzingMbti(true);
+    try {
+      const result = await api.inferPersonaMbti(text);
+      onPatch({ mbti: normalizeMbtiInput(result.mbti) });
+      setMbtiAnalysis(result);
+      onToast(`MBTI를 ${result.mbti}로 추정했습니다`);
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "MBTI를 분석하지 못했습니다");
+    } finally {
+      setAnalyzingMbti(false);
+    }
+  };
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -204,7 +270,7 @@ function PersonaDialog({
               {title}
             </div>
             <div id="persona-dialog-desc" className="modal-sub">
-              관계, 톤, 메모와 Gmail 발송 이메일을 저장합니다.
+              관계, 톤, MBTI, 메모와 Gmail 발송 이메일을 저장합니다.
             </div>
           </div>
           <button
@@ -265,6 +331,34 @@ function PersonaDialog({
                 placeholder="백엔드 챕터 리드"
               />
             </label>
+            <div className="form-field">
+              <div className="row between mbti-label-row">
+                <span id="persona-mbti-label">MBTI (선택)</span>
+                <button
+                  type="button"
+                  className="btn-secondary mbti-helper-toggle"
+                  onClick={() => setMbtiHelperOpen((open) => !open)}
+                  aria-label="잘 모르겠어요"
+                  aria-controls="persona-mbti-analysis"
+                  aria-expanded={mbtiHelperOpen}
+                >
+                  잘 모르겠어요
+                </button>
+              </div>
+              <input
+                value={draft.mbti}
+                onChange={(event) =>
+                  onChange({ ...draft, mbti: normalizeMbtiInput(event.target.value) })
+                }
+                placeholder="INTJ"
+                aria-labelledby="persona-mbti-label"
+                maxLength={4}
+                aria-invalid={validation?.field === "mbti" || undefined}
+                aria-describedby={
+                  validation?.field === "mbti" ? "persona-dialog-error" : undefined
+                }
+              />
+            </div>
             <label>
               <span>톤</span>
               <select
@@ -283,6 +377,54 @@ function PersonaDialog({
                 ))}
               </select>
             </label>
+            {mbtiHelperOpen && (
+              <div
+                id="persona-mbti-analysis"
+                className="span-2 mbti-analysis-panel"
+              >
+                <div className="mbti-analysis-head">
+                  <div>
+                    <div className="mbti-analysis-title">성향 설명으로 MBTI 추정</div>
+                    <div className="mbti-analysis-sub">
+                      공식 MBTI 선호축 기준을 백엔드에서 참고해 유형을 제안합니다.
+                    </div>
+                  </div>
+                  {mbtiAnalysis && (
+                    <span className="person-card-mbti">{mbtiAnalysis.mbti}</span>
+                  )}
+                </div>
+                <textarea
+                  value={mbtiDescription}
+                  onChange={(event) => setMbtiDescription(event.target.value)}
+                  aria-label="성향 설명"
+                  placeholder="예: 혼자 정리할 때 에너지가 나고, 큰 그림과 장기 계획을 먼저 세운 뒤 논리적으로 판단합니다."
+                  maxLength={4000}
+                />
+                <div className="mbti-analysis-foot">
+                  <a
+                    href={mbtiAnalysis?.sourceUrl || "https://www.mbtionline.com/en-US/MBTI-Types/All-about-the-Myers-Briggs-types"}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    공식 MBTI 기준
+                  </a>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => void analyzeMbti()}
+                    disabled={saving || analyzingMbti || !mbtiDescription.trim()}
+                  >
+                    <IconSparkle size={13} />
+                    {analyzingMbti ? "분석 중" : "MBTI 분석"}
+                  </button>
+                </div>
+                {mbtiAnalysis && (
+                  <div className="mbti-analysis-result">
+                    신뢰도 {mbtiAnalysis.confidence} · {mbtiAnalysis.rationale}
+                  </div>
+                )}
+              </div>
+            )}
             <label>
               <span>키워드</span>
               <input
@@ -545,6 +687,7 @@ export function PeopleScreen({
         notes: draft.notes.trim(),
         email: draft.email.trim() || null,
         role: draft.role.trim(),
+        mbti: normalizeMbtiInput(draft.mbti),
         keywords: splitList(draft.keywords),
         avoid: splitList(draft.avoid),
         prefer: draft.prefer.trim(),
@@ -645,7 +788,7 @@ export function PeopleScreen({
     <div className="page people-page">
       <PageTitle
         title="사람"
-        desc="자주 보내는 사람의 관계, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
+        desc="자주 보내는 사람의 관계, MBTI, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
         action={
           <div className="row gap-2 people-actions">
             <button
@@ -711,6 +854,10 @@ export function PeopleScreen({
           onCancel={closeDraft}
           onSave={() => void save()}
           onStructure={() => void structureDraft()}
+          onToast={onToast}
+          onPatch={(patch) =>
+            setDraft((current) => (current ? { ...current, ...patch } : current))
+          }
         />
       )}
 
@@ -733,7 +880,7 @@ export function PeopleScreen({
                     <div className="person-card-meta">{persona.relation}</div>
                   </div>
                   <span className="person-card-mbti">
-                    {persona.source || "manual"}
+                    {persona.mbti || "MBTI 미입력"}
                   </span>
                 </div>
                 <div className="person-card-tags">
