@@ -268,6 +268,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Contacts import는 이메일/정규화 이름 중복 skip 계약을 재현한다.
 - mock Gmail 목록/상세와 reply context는 `senderEmail`, `senderName`, `personaId`, `persona` 메타데이터를 포함한다.
 - mock Gmail send는 이미 `sent` 상태인 history를 다시 발송하지 않고, 기존 mock Gmail message id와 `raw.deduplicated: true`를 반환한다.
+- mock Gmail send는 payload에 `replyContextId`가 없으면 연결된 history의 reply context를 사용해 답장 대상과 thread header를 보완한다.
 - mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
 - mock persona 삭제는 백엔드와 동일하게 연결된 history의 persona relation을 해제하고 대상 스냅샷을 유지한다.
 - mock `GET /history`는 백엔드와 동일하게 `personaId`, `personaEmail`, `email` 필터를 지원하며 스냅샷 이메일도 매칭한다.
