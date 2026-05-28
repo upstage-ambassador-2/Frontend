@@ -263,7 +263,28 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - 서버 검색 파라미터 기반 `/history?q=` 구현은 현재 범위에서 제외하고 클라이언트 필터로 유지한다.
 - History 페이지네이션과 대량 데이터 최적화는 후순위로 둔다.
 
-## 10. Local Mock E2E 지원
+## 10. 공통 Toast 피드백
+
+### 기능 명
+전역 Toast 큐 및 자동 dismiss
+
+### 기능 정의
+로그인 화면과 앱 shell에서 성공, 실패, 안내 메시지를 일관된 toast로 표시한다.
+
+### 기능 상세 동작
+- LoginPage와 MelloShell은 같은 toast enqueue 함수를 사용한다.
+- toast는 최대 3개까지만 화면에 유지해 짧은 시간에 여러 액션이 발생해도 하단 UI가 과도하게 쌓이지 않게 한다.
+- 새 toast가 추가될 때 최대 개수를 초과하면 가장 오래된 toast를 먼저 제거한다.
+- 각 toast는 1.8초 뒤 자동으로 dismiss된다.
+- toast stack은 `aria-live="polite"`와 `role="status"`를 사용해 상태 메시지를 보조 기술에 전달한다.
+
+### 기능 효과
+사용자가 빠르게 연속 작업을 해도 피드백을 읽을 수 있고, toast가 주요 작업 화면을 가리지 않는다.
+
+### 연계 기능
+Login, Compose, People, Format, History, Settings
+
+## 11. Local Mock E2E 지원
 
 ### 기능 명
 프론트엔드 mock API 기반 E2E 검증
@@ -293,7 +314,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 ### 연계 기능
 Frontend routes, mock data, manual QA
 
-## 11. 운영 Health/Readiness
+## 12. 운영 Health/Readiness
 
 ### 기능 명
 운영 Health/Readiness 라우팅
