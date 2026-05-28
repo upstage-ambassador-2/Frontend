@@ -801,6 +801,40 @@ async function handler(req, res) {
       return;
     }
 
+    if (req.method === "POST" && path === "/personas/structure") {
+      const payload = await readBody(req);
+      const text = String(payload.text || "").trim();
+      if (!text) {
+        sendJson(res, 422, { detail: "분석할 페르소나 메모가 필요합니다." }, headers);
+        return;
+      }
+      const tone = normalizePersonaTone(text);
+      const keywords = [
+        text.includes("결론") ? "결론 먼저" : "",
+        text.includes("일정") ? "일정 중시" : "",
+        text.includes("감정") || text.includes("따뜻") ? "감정 배려" : "",
+      ].filter(Boolean);
+      const avoid = [
+        text.includes("모호") ? "모호한 표현" : "",
+        text.includes("변명") ? "변명조 표현" : "",
+      ].filter(Boolean);
+      sendJson(
+        res,
+        200,
+        {
+          tone,
+          keywords: keywords.length ? keywords : ["핵심 요약"],
+          avoid,
+          prefer: text.includes("결론")
+            ? "결론 → 일정 → 근거 순서"
+            : "맥락 → 요청 → 마무리 순서",
+          notes: text.slice(0, 500),
+        },
+        headers,
+      );
+      return;
+    }
+
     const personaMatch = path.match(/^\/personas\/([^/]+)$/);
     if (personaMatch && req.method === "PATCH") {
       const payload = await readBody(req);

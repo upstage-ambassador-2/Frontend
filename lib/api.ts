@@ -125,6 +125,14 @@ export type PersonaPayload = {
   prefer?: string;
 };
 
+export type PersonaStructureResult = {
+  tone: PersonaTone;
+  keywords: string[];
+  avoid: string[];
+  prefer: string;
+  notes: string;
+};
+
 export type SendPayload = {
   to?: string;
   cc?: string[];
@@ -294,6 +302,11 @@ export const api = {
     );
     return { ...result, personas: normalizePersonas(result.personas) };
   },
+  structurePersona: (text: string) =>
+    apiJson<PersonaStructureResult>("/personas/structure", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   history: () => apiJson<HistoryItem[]>("/history"),
   historyDetail: (id: string) =>
     apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}`),
