@@ -600,6 +600,24 @@ function applySendGuardrails({ item, to, subject, body }) {
   };
 }
 
+function applyGenerationGuardrails({ persona, subject, body }) {
+  const guardedBody = ensureSignature(body);
+  const forbiddenTerms = forbiddenTermsInDraft(persona, subject, guardedBody);
+  if (forbiddenTerms.length) {
+    return {
+      ok: false,
+      detail: `생성 결과에 피해야 할 표현이 포함되었습니다: ${forbiddenTerms
+        .slice(0, 3)
+        .join(", ")}. 다시 생성해주세요.`,
+    };
+  }
+  return {
+    ok: true,
+    subject: String(subject || "").trim(),
+    body: guardedBody,
+  };
+}
+
 async function streamDraft(req, res, payload) {
   const personaId = payload.personaId || payload.persona_id || null;
   let replyContextId = payload.replyContextId || payload.reply_context_id || null;
@@ -621,6 +639,27 @@ async function streamDraft(req, res, payload) {
   const draft = buildDraft(normalizedPayload);
   const persona = personas.find((item) => item.id === personaId);
   const replyContext = replyContexts.find((item) => item.id === replyContextId);
+  const guardedDraft = applyGenerationGuardrails({
+    persona,
+    subject: draft.subject,
+    body: draft.body,
+  });
+  if (!guardedDraft.ok) {
+    res.writeHead(200, {
+      ...corsHeaders(req),
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    });
+    res.write(
+      `event: error\ndata: ${JSON.stringify({
+        detail: guardedDraft.detail,
+        status: 502,
+      })}\n\n`,
+    );
+    res.end();
+    return;
+  }
   const replyEmail = emailFromAddress(replyContext?.fromAddr);
   const replyMatchesPersona =
     !!replyEmail &&
@@ -641,8 +680,8 @@ async function streamDraft(req, res, payload) {
     replyFromAddr: replyContext?.fromAddr || null,
     replySubject: replyContext?.subject || null,
     brief: payload.brief || "",
-    subject: draft.subject,
-    body: draft.body,
+    subject: guardedDraft.subject,
+    body: guardedDraft.body,
     status: "draft",
     tone: toneLabel(payload.tone ?? 50),
     toneValue: payload.tone ?? 50,
@@ -652,8 +691,8 @@ async function streamDraft(req, res, payload) {
     createdAt: nowIso(),
     sentAt: null,
     gmailMessageId: null,
-    subj: draft.subject,
-    prev: draft.body.replace(/\n/g, " ").slice(0, 120),
+    subj: guardedDraft.subject,
+    prev: guardedDraft.body.replace(/\n/g, " ").slice(0, 120),
   };
   history = [item, ...history];
 
@@ -664,11 +703,13 @@ async function streamDraft(req, res, payload) {
     Connection: "keep-alive",
   });
 
-  const chunks = draft.body.match(/.{1,18}(\s|$)|.+/gs) || [draft.body];
+  const chunks = guardedDraft.body.match(/.{1,18}(\s|$)|.+/gs) || [
+    guardedDraft.body,
+  ];
   for (let index = 0; index < chunks.length; index += 1) {
     res.write(
       `event: delta\ndata: ${JSON.stringify({
-        subject: draft.subject,
+        subject: guardedDraft.subject,
         text: chunks[index],
       })}\n\n`,
     );
@@ -676,8 +717,8 @@ async function streamDraft(req, res, payload) {
   }
   res.write(
     `event: done\ndata: ${JSON.stringify({
-      subject: draft.subject,
-      body: draft.body,
+      subject: guardedDraft.subject,
+      body: guardedDraft.body,
       history: historyOut(item),
     })}\n\n`,
   );
