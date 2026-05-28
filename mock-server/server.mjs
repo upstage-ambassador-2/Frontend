@@ -1068,7 +1068,30 @@ async function handler(req, res) {
 
     if (req.method === "PUT" && path === "/format") {
       const payload = await readBody(req);
-      mailFormat = { ...mailFormat, ...payload, updatedAt: nowIso() };
+      const requiredFields = {
+        greeting: "인사말은 비워둘 수 없습니다.",
+        structure: "본문 구조는 비워둘 수 없습니다.",
+        language: "기본 언어는 비워둘 수 없습니다.",
+      };
+      for (const [key, message] of Object.entries(requiredFields)) {
+        if (
+          Object.prototype.hasOwnProperty.call(payload, key) &&
+          !String(payload[key] || "").trim()
+        ) {
+          sendJson(res, 422, { detail: message }, headers);
+          return;
+        }
+      }
+      mailFormat = {
+        ...mailFormat,
+        ...Object.fromEntries(
+          Object.entries(payload).map(([key, value]) => [
+            key,
+            typeof value === "string" ? value.trim() : value,
+          ]),
+        ),
+        updatedAt: nowIso(),
+      };
       sendJson(res, 200, mailFormat, headers);
       return;
     }
