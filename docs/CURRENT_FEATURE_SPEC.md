@@ -47,6 +47,7 @@ Gmail 받은편지함, Gmail 발송, Contacts import, Settings 통합 상태
 - Gmail과 Google Contacts는 Google OAuth scope 기반 연결 상태로 표시한다.
 - Slack과 Notion은 UI에 표시하지만 `지원 예정` no-op 상태로 둔다.
 - Settings의 통합 버튼은 실제 연결/해제가 아니라 안내 API를 호출하고 toast를 표시한다.
+- Settings의 통합 버튼은 안내 요청 또는 Google 재동의 시작 중 중복 클릭을 막고 진행 중 문구를 표시한다.
 
 ### 기능 효과
 사용자가 현재 계정과 사용 가능한 외부 연동 범위를 확인할 수 있다.
