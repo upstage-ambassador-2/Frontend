@@ -64,6 +64,7 @@ Google OAuth, Settings, Gmail, Contacts
 
 ### 기능 상세 동작
 - People 화면은 `GET /personas` 결과를 목록으로 렌더링한다.
+- 앱 shell의 초기 persona 조회가 실패하면 빈 목록으로 오인하지 않도록 People 화면에 오류 상태를 표시한다.
 - 사람 추가 또는 수정 시 이름, 이메일, 관계, 역할, 톤, 키워드, 금지 표현, 선호 표현, 메모를 입력한다.
 - 메모 입력 후 `AI 정리`를 누르면 `POST /personas/structure`가 자유 텍스트를 톤, 키워드, 금지 표현, 선호 표현, 요약 메모로 구조화한다.
 - 구조화 결과는 저장 전 폼 필드에 반영되며, 사용자가 다시 수정한 뒤 저장한다.
@@ -112,9 +113,10 @@ Google OAuth `contacts.readonly`, People, Compose
 
 ### 기능 상세 동작
 - Format 화면은 `GET /format`으로 현재 형식을 조회한다.
+- 앱 shell의 초기 format 조회가 실패하면 빈 기본값으로 오인하지 않도록 Format 화면에 오류 상태를 표시한다.
 - 편집 모드에서 필드를 수정하고 저장하면 `PUT /format`을 호출한다.
 - 백엔드는 사용자별 1:1 MailFormat을 생성 또는 갱신한다.
-- AI 생성 시 백엔드가 MailFormat을 시스템 프롬프트에 삽입한다.
+- AI 생성 시 백엔드가 MailFormat을 생성 컨텍스트에 반영한다.
 
 ### 기능 효과
 AI 초안이 사용자의 평소 이메일 스타일과 서명을 따른다.
@@ -220,6 +222,7 @@ AI가 생성한 초안과 Gmail 발송 상태를 사용자별로 저장하고, H
 - `/gmail/send` 성공 시 연결된 HistoryItem을 `sent` 상태로 갱신한다.
 - `/gmail/send`는 발송 payload의 subject/body를 연결된 HistoryItem에 최종 반영한 뒤 `sent` 상태로 갱신한다.
 - 앱 shell의 서버 초기 데이터 로딩은 `GET /history` 결과를 받아 History 화면의 목록 초기 상태로 전달한다.
+- 앱 shell의 초기 history 조회가 실패하면 빈 history가 아니라 오류 상태를 표시한다.
 - 목록 row는 subject, preview, 대상 이름/이메일, `draft` 또는 `sent` 상태, tone/length, 작성 시각을 표시한다.
 - 화면 내 client filter로 전체, persona별, reply 기록별 필터를 제공한다.
 - 검색어 입력 시 subject, preview/body, brief, reply subject, 대상 이름/이메일, 상태, 작성 시각을 클라이언트에서 필터링한다.

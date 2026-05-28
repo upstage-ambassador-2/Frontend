@@ -20,6 +20,7 @@ import {
   type ReplyContext,
 } from "@/lib/api";
 import { normalizeEmailAddress } from "@/lib/email";
+import type { InitialLoadErrors } from "@/lib/server-api";
 import {
   hrefForRoute,
   labelForRoute,
@@ -79,6 +80,7 @@ type MelloContextValue = {
   setPersonas: (items: Persona[]) => void;
   history: HistoryItem[];
   format: MailFormat;
+  initialLoadErrors: InitialLoadErrors;
   setFormat: (format: MailFormat) => void;
   selectedId: string;
   setSelectedId: (id: string) => void;
@@ -114,6 +116,7 @@ type Props = {
   initialPersonas: Persona[];
   initialHistory: HistoryItem[];
   initialFormat: MailFormat;
+  initialLoadErrors: InitialLoadErrors;
 };
 
 export function MelloShell({
@@ -122,6 +125,7 @@ export function MelloShell({
   initialPersonas,
   initialHistory,
   initialFormat,
+  initialLoadErrors,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
@@ -327,6 +331,7 @@ export function MelloShell({
       setPersonas,
       history,
       format,
+      initialLoadErrors,
       setFormat,
       selectedId,
       setSelectedId,
@@ -352,6 +357,7 @@ export function MelloShell({
       handleReply,
       history,
       initialMe,
+      initialLoadErrors,
       length,
       personas,
       replyContext,
