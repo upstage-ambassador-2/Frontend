@@ -454,6 +454,10 @@ export function PeopleScreen({
   const [saving, setSaving] = useState(false);
   const [structuring, setStructuring] = useState(false);
   const [importingContacts, setImportingContacts] = useState(false);
+  const [reauthorizingContacts, setReauthorizingContacts] = useState(false);
+  const [importRecoveryError, setImportRecoveryError] = useState<string | null>(
+    null,
+  );
   const connectedCount = useMemo(
     () => personas.filter((persona) => !!personaEmail(persona)).length,
     [personas],
@@ -556,16 +560,35 @@ export function PeopleScreen({
   };
 
   const importContacts = async () => {
-    if (importingContacts) return;
+    if (importingContacts || importRecoveryError) return;
     setImportingContacts(true);
+    setImportRecoveryError(null);
     try {
       const result = await api.importContacts();
       onChanged(result.personas);
+      setImportRecoveryError(null);
       onToast(`Contacts에서 ${result.imported}명 가져옴 · ${result.skipped}명 건너뜀`);
     } catch (error) {
-      onToast(error instanceof Error ? error.message : "Contacts를 가져오지 못했습니다");
+      const message =
+        error instanceof Error ? error.message : "Contacts를 가져오지 못했습니다";
+      if (needsGoogleReauth(message)) {
+        setImportRecoveryError(message);
+      }
+      onToast(message);
     } finally {
       setImportingContacts(false);
+    }
+  };
+
+  const reauthorizeContacts = async () => {
+    setReauthorizingContacts(true);
+    try {
+      window.location.href = await startGoogleLogin("/people");
+    } catch (error) {
+      setReauthorizingContacts(false);
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
     }
   };
 
@@ -580,7 +603,7 @@ export function PeopleScreen({
               type="button"
               className="btn-secondary"
               onClick={importContacts}
-              disabled={importingContacts}
+              disabled={importingContacts || !!importRecoveryError}
             >
               <IconMail size={13} />{" "}
               {importingContacts ? "가져오는 중" : "Contacts에서 가져오기"}
@@ -608,6 +631,23 @@ export function PeopleScreen({
       {loadError && (
         <div className="state-row error-text" role="alert">
           {loadError}
+        </div>
+      )}
+
+      {importRecoveryError && (
+        <div className="state-row state-stack error-text" role="alert">
+          <div>{importRecoveryError}</div>
+          <div className="row gap-2">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void reauthorizeContacts()}
+              disabled={reauthorizingContacts}
+            >
+              <IconRefresh size={13} />
+              {reauthorizingContacts ? "재동의 중" : "Google 재동의"}
+            </button>
+          </div>
         </div>
       )}
 
