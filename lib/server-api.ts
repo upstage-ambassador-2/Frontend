@@ -11,6 +11,8 @@ import {
 import {
   DEFAULT_GMAIL_PAGE_SIZE,
   normalizeGmailPageSize,
+  type DraftChatMessage,
+  type DraftSession,
   type GmailMessage,
   type GmailMessageDetail,
   type MeResponse,
@@ -220,6 +222,34 @@ export async function getServerGmailMessage(
         error instanceof Error
           ? error.message
           : "메일 원문을 불러오지 못했습니다.",
+    };
+  }
+}
+
+export async function getServerDraftSession(
+  draftId?: string | null,
+): Promise<ServerDataResult<DraftSession | null>> {
+  const id = draftId?.trim();
+  if (!id) return { ok: true, data: null };
+
+  const header = cookieHeader();
+  try {
+    const [history, messages] = await Promise.all([
+      fetchJson<HistoryItem>(`/history/${encodeURIComponent(id)}`, header),
+      fetchJson<DraftChatMessage[]>(
+        `/history/${encodeURIComponent(id)}/draft/messages`,
+        header,
+      ),
+    ]);
+    return { ok: true, data: { history, messages } };
+  } catch (error) {
+    return {
+      ok: false,
+      data: null,
+      error:
+        error instanceof Error
+          ? error.message
+          : "저장된 초안을 불러오지 못했습니다.",
     };
   }
 }

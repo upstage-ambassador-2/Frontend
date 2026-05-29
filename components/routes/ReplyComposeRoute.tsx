@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ComposerScreen } from "@/components/ComposerScreen";
 import { useMello } from "@/components/MelloShell";
-import { api, startGoogleLogin, type ReplyContext } from "@/lib/api";
+import {
+  api,
+  startGoogleLogin,
+  type DraftSession,
+  type ReplyContext,
+} from "@/lib/api";
 import type { Persona } from "@/lib/data";
 import {
   extractEmailDisplayName,
@@ -16,6 +21,7 @@ import { IconMail, IconRefresh } from "../icons";
 type Props = {
   initialReplyContext: ReplyContext;
   messageId: string;
+  initialDraftSession?: DraftSession | null;
 };
 
 type ErrorProps = {
@@ -140,7 +146,11 @@ export function ReplyComposeErrorRoute({
   );
 }
 
-export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
+export function ReplyComposeRoute({
+  initialReplyContext,
+  messageId,
+  initialDraftSession = null,
+}: Props) {
   const router = useRouter();
   const mello = useMello();
   const [brief, setBrief] = useState("");
@@ -260,6 +270,7 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
       onClearReplyContext={clearReplyContext}
       onHistoryCreated={mello.replaceHistory}
       onHistoryUpdated={mello.replaceHistory}
+      initialDraftSession={initialDraftSession}
     />
   );
 }

@@ -242,6 +242,7 @@ let history = [
     prev: "결제 모듈 QA에서 회귀 테스트 1건이 발견되어 내일 오전까지 수정…",
   },
 ];
+let draftRevisionMessages = [];
 
 const baseGmailMessages = [
   {
@@ -442,6 +443,12 @@ function historyOut(item) {
   };
 }
 
+function draftRevisionMessagesFor(historyId) {
+  return draftRevisionMessages
+    .filter((message) => message.historyId === historyId)
+    .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)));
+}
+
 function historyMatchesEmail(item, email) {
   const linkedPersona = item.personaId
     ? personas.find((persona) => persona.id === item.personaId)
@@ -632,6 +639,48 @@ function applyGenerationGuardrails({ persona, subject, body }) {
   };
 }
 
+function buildRevisedDraft(item, message) {
+  const request = String(message || "").trim();
+  const wantsShort = /짧|간결|핵심/.test(request);
+  const wantsFormal = /정중|격식|공손/.test(request);
+  const wantsLead = /결론|먼저|앞/.test(request);
+  const wantsSoft = /부드럽|완곡|친근/.test(request);
+  const subject = wantsShort
+    ? item.subject.replace(/^\[Mello\]\s*/, "").slice(0, 44)
+    : item.subject;
+  const normalizedBody = String(item.body || "").replace(/\n{3,}/g, "\n\n").trim();
+  const bodyWithoutSignature = normalizedBody
+    .replace(String(mailFormat.signature || "").trim(), "")
+    .replace(String(mailFormat.greeting || "").trim(), "")
+    .replace(String(mailFormat.closing || "").trim(), "")
+    .trim();
+  const firstParagraph = bodyWithoutSignature.split(/\n\s*\n/).find(Boolean) || bodyWithoutSignature;
+  const leadLine = wantsLead
+    ? "핵심부터 말씀드리면, 요청주신 내용은 확인했으며 필요한 후속 조치를 진행하겠습니다."
+    : "";
+  const toneLine = wantsFormal
+    ? "확인되는 내용은 정리해서 다시 공유드리겠습니다."
+    : wantsSoft
+    ? "부담 없이 확인 부탁드리며, 조정이 필요하면 편하게 말씀해주세요."
+    : "필요한 액션은 이어서 진행하겠습니다.";
+  const body = [
+    mailFormat.greeting,
+    "",
+    leadLine,
+    wantsShort ? firstParagraph : bodyWithoutSignature,
+    "",
+    toneLine,
+    "",
+    mailFormat.closing,
+    mailFormat.signature,
+  ]
+    .filter((line, index, lines) => line || lines[index - 1] !== "")
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { subject, body };
+}
+
 async function streamDraft(req, res, payload) {
   const personaId = payload.personaId || payload.persona_id || null;
   let replyContextId = payload.replyContextId || payload.reply_context_id || null;
@@ -709,6 +758,15 @@ async function streamDraft(req, res, payload) {
     prev: guardedDraft.body.replace(/\n/g, " ").slice(0, 120),
   };
   history = [item, ...history];
+  draftRevisionMessages.push({
+    id: `dm-${randomUUID()}`,
+    historyId: item.id,
+    role: "assistant",
+    content: "초안을 작성했습니다.",
+    subject: guardedDraft.subject,
+    body: guardedDraft.body,
+    createdAt: nowIso(),
+  });
 
   res.writeHead(200, {
     ...corsHeaders(req),
@@ -1195,6 +1253,87 @@ async function handler(req, res) {
       item.subject = "";
       item.body = "";
       sendJson(res, 200, historyOut(item), headers);
+      return;
+    }
+
+    const historyDraftMessagesMatch = path.match(/^\/history\/([^/]+)\/draft\/messages$/);
+    if (historyDraftMessagesMatch && req.method === "GET") {
+      const item = history.find((entry) => entry.id === historyDraftMessagesMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      sendJson(res, 200, draftRevisionMessagesFor(item.id), headers);
+      return;
+    }
+
+    const historyDraftReviseMatch = path.match(/^\/history\/([^/]+)\/draft\/revise$/);
+    if (historyDraftReviseMatch && req.method === "POST") {
+      const item = history.find((entry) => entry.id === historyDraftReviseMatch[1]);
+      if (!item) {
+        sendJson(res, 404, { detail: "히스토리를 찾을 수 없습니다." }, headers);
+        return;
+      }
+      if (item.status === "sent") {
+        sendJson(
+          res,
+          409,
+          { detail: "발송 완료된 히스토리는 수정할 수 없습니다." },
+          headers,
+        );
+        return;
+      }
+      const payload = await readBody(req);
+      const message = String(payload.message || "").trim();
+      if (!message) {
+        sendJson(res, 422, { detail: "수정 요청 내용을 입력해주세요." }, headers);
+        return;
+      }
+      const userMessage = {
+        id: `dm-${randomUUID()}`,
+        historyId: item.id,
+        role: "user",
+        content: message,
+        subject: null,
+        body: null,
+        createdAt: nowIso(),
+      };
+      const revised = buildRevisedDraft(item, message);
+      const persona = item.personaId
+        ? personas.find((entry) => entry.id === item.personaId)
+        : null;
+      const guardedDraft = applyGenerationGuardrails({
+        persona,
+        subject: revised.subject,
+        body: revised.body,
+      });
+      if (!guardedDraft.ok) {
+        sendJson(res, 422, { detail: guardedDraft.detail }, headers);
+        return;
+      }
+      item.subject = guardedDraft.subject;
+      item.body = guardedDraft.body;
+      item.subj = guardedDraft.subject;
+      item.prev = guardedDraft.body.replace(/\n/g, " ").slice(0, 120);
+      const assistantMessage = {
+        id: `dm-${randomUUID()}`,
+        historyId: item.id,
+        role: "assistant",
+        content: "초안을 수정했습니다.",
+        subject: guardedDraft.subject,
+        body: guardedDraft.body,
+        createdAt: nowIso(),
+      };
+      draftRevisionMessages.push(userMessage, assistantMessage);
+      sendJson(
+        res,
+        200,
+        {
+          history: historyOut(item),
+          messages: draftRevisionMessagesFor(item.id),
+        },
+        headers,
+      );
       return;
     }
 

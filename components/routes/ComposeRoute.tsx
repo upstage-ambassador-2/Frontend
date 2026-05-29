@@ -2,8 +2,13 @@
 
 import { ComposerScreen } from "@/components/ComposerScreen";
 import { useMello } from "@/components/MelloShell";
+import type { DraftSession } from "@/lib/api";
 
-export function ComposeRoute() {
+export function ComposeRoute({
+  initialDraftSession = null,
+}: {
+  initialDraftSession?: DraftSession | null;
+}) {
   const mello = useMello();
   return (
     <ComposerScreen
@@ -22,6 +27,7 @@ export function ComposeRoute() {
       onClearReplyContext={mello.clearReplyContext}
       onHistoryCreated={mello.replaceHistory}
       onHistoryUpdated={mello.replaceHistory}
+      initialDraftSession={initialDraftSession}
     />
   );
 }
