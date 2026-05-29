@@ -26,10 +26,12 @@ import {
   type GmailMessage,
   type MeResponse,
   type PaginatedGmailMessages,
+  type DraftChatMessage,
   type PersonaMbtiInferResult,
   type PersonaPayload,
 } from "@/lib/api";
 import { extractEmailAddress, normalizeEmailAddress } from "@/lib/email";
+import { composeHref } from "@/lib/routes";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
@@ -1235,9 +1237,38 @@ export function InboxScreen({
 
 type HistoryDetailState = {
   item?: HistoryItem;
+  draftMessages?: DraftChatMessage[];
   isLoading: boolean;
   error?: string;
+  messagesError?: string;
 };
+
+function historyDraftHref(item: HistoryItem): string {
+  const draftQuery = `draftId=${encodeURIComponent(item.id)}`;
+  const replyId = item.replyContextId?.trim();
+  const personaId = item.personaId?.trim();
+
+  if (replyId && personaId) {
+    return `${composeHref(personaId)}/reply/${encodeURIComponent(replyId)}?${draftQuery}`;
+  }
+  if (replyId) {
+    return `/compose/reply/${encodeURIComponent(replyId)}?${draftQuery}`;
+  }
+  if (personaId) {
+    return `${composeHref(personaId)}?${draftQuery}`;
+  }
+  return `/compose?${draftQuery}`;
+}
+
+function draftMessageText(message: DraftChatMessage): string {
+  if (message.role === "user") return message.content;
+  if (message.subject && message.body) {
+    return `제목: ${message.subject}\n${message.body}`;
+  }
+  return message.subject
+    ? `제목: ${message.subject}`
+    : message.body || message.content || "초안을 수정했습니다.";
+}
 
 export function HistoryScreen({
   history,
@@ -1342,14 +1373,25 @@ export function HistoryScreen({
         },
       }));
 
-      void api
-        .historyDetail(item.id)
-        .then((detail) => {
+      void Promise.allSettled([
+        api.historyDetail(item.id),
+        api.historyDraftMessages(item.id),
+      ])
+        .then(([detailResult, messagesResult]) => {
+          if (detailResult.status === "rejected") {
+            throw detailResult.reason;
+          }
           setDetailById((current) => ({
             ...current,
             [item.id]: {
-              item: detail,
+              item: detailResult.value,
+              draftMessages:
+                messagesResult.status === "fulfilled" ? messagesResult.value : [],
               isLoading: false,
+              messagesError:
+                messagesResult.status === "rejected"
+                  ? "수정 요청 기록을 불러오지 못했습니다."
+                  : undefined,
             },
           }));
         })
@@ -1492,9 +1534,11 @@ export function HistoryScreen({
           const detailItem = detailState?.item || item;
           const detailTarget = targetFor(detailItem);
           const detailSubject = detailItem.subject || detailItem.subj || subject;
+          const detailStatus = detailItem.status || status;
           const detailPreview =
             detailItem.prev || detailItem.body || detailItem.brief || preview;
           const detailBody = detailItem.body || detailPreview;
+          const draftMessages = detailState?.draftMessages ?? [];
           return (
             <div key={item.id}>
               <button
@@ -1540,6 +1584,15 @@ export function HistoryScreen({
                 >
                   <div className="history-detail-head">
                     <div className="history-detail-title">{detailSubject}</div>
+                    {detailStatus !== "sent" && (
+                      <Link
+                        href={historyDraftHref(detailItem)}
+                        className="btn-primary history-resume-link"
+                      >
+                        <IconSparkle size={13} />
+                        이어쓰기
+                      </Link>
+                    )}
                     <button
                       type="button"
                       className="btn-secondary"
@@ -1567,7 +1620,40 @@ export function HistoryScreen({
                   ) : detailState?.error ? (
                     <p className="muted">상세를 불러오지 못했습니다.</p>
                   ) : (
-                    <p>{detailBody}</p>
+                    <>
+                      <div className="history-detail-body">{detailBody}</div>
+                      <div className="history-chat-history">
+                        <div className="history-chat-head">
+                          <span>수정 요청 기록</span>
+                          <span className="tag blue">
+                            {draftMessages.length}개
+                          </span>
+                        </div>
+                        {detailState?.messagesError ? (
+                          <div className="history-chat-empty">
+                            {detailState.messagesError}
+                          </div>
+                        ) : draftMessages.length === 0 ? (
+                          <div className="history-chat-empty">
+                            저장된 수정 요청 기록이 없습니다.
+                          </div>
+                        ) : (
+                          <div className="history-chat-log">
+                            {draftMessages.map((message) => (
+                              <div
+                                key={message.id}
+                                className={`history-chat-message is-${message.role}`}
+                              >
+                                <span className="history-chat-role">
+                                  {message.role === "user" ? "나" : "Mello"}
+                                </span>
+                                <span>{draftMessageText(message)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}

@@ -13,6 +13,7 @@ export function ComposeRoute({
   return (
     <ComposerScreen
       personas={mello.personas}
+      history={mello.history}
       format={mello.format}
       onToast={mello.showToast}
       selectedId={mello.selectedId}
