@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoginScreen } from "./LoginScreen";
-import { ToastStack, type ToastItem } from "./Toast";
+import { ToastStack, enqueueToast, type ToastItem } from "./Toast";
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   access_denied: "Google 로그인 동의가 취소되었습니다. 다시 시도해주세요.",
@@ -17,12 +17,7 @@ export function LoginPage({ authError }: { authError?: string }) {
   const shownAuthErrorRef = useRef<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
-    const id = Date.now() + Math.random();
-    setToasts((arr) => [...arr, { id, msg }]);
-    setTimeout(
-      () => setToasts((arr) => arr.filter((x) => x.id !== id)),
-      1800,
-    );
+    enqueueToast(setToasts, msg);
   }, []);
 
   const authErrorMessage = useMemo(() => {

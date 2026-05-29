@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { HistoryItem, Persona } from "@/lib/data";
 import { PersonaAvatar } from "./PersonaAvatar";
@@ -15,6 +15,7 @@ import {
   IconMore,
   IconMail,
   IconClose,
+  IconLogout,
 } from "./icons";
 import { hrefForRoute, type Route } from "@/lib/routes";
 import type { User } from "@/lib/api";
@@ -22,21 +23,40 @@ import type { User } from "@/lib/api";
 type NavItemProps = {
   icon: ReactNode;
   label: string;
+  desc?: string;
   active: boolean;
   href: string;
   count?: ReactNode;
+  emphasis?: boolean;
   onNavigate?: () => void;
 };
 
-function NavItem({ icon, label, active, href, count, onNavigate }: NavItemProps) {
+function NavItem({
+  icon,
+  label,
+  desc,
+  active,
+  href,
+  count,
+  emphasis = false,
+  onNavigate,
+}: NavItemProps) {
   return (
     <Link
       href={href}
-      className={"side-item" + (active ? " is-active" : "")}
+      className={
+        "side-item" +
+        (active ? " is-active" : "") +
+        (emphasis ? " is-primary-action" : "")
+      }
       onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
     >
       <span className="side-item-icon">{icon}</span>
-      <span>{label}</span>
+      <span className="side-item-copy">
+        <span className="side-item-label">{label}</span>
+        {desc && <span className="side-item-desc">{desc}</span>}
+      </span>
       {count != null && <span className="side-item-count">{count}</span>}
     </Link>
   );
@@ -52,6 +72,7 @@ type Props = {
   user: User | null;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  onLogout: () => void;
 };
 
 export function Sidebar({
@@ -64,8 +85,11 @@ export function Sidebar({
   user,
   mobileOpen,
   onCloseMobile,
+  onLogout,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const searchActive = normalizedSearch.length > 0;
 
@@ -121,6 +145,26 @@ export function Sidebar({
   const clearSearch = () => setSearchQuery("");
   const hasSearchResults =
     personaResults.length > 0 || historyResults.length > 0;
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   return (
     <aside
@@ -204,7 +248,9 @@ export function Sidebar({
                 return (
                   <Link
                     key={item.id}
-                    href={hrefForRoute("history")}
+                    href={`${hrefForRoute("history")}?open=${encodeURIComponent(
+                      item.id,
+                    )}`}
                     className="side-search-result"
                     title={subject}
                     onClick={() => {
@@ -231,50 +277,22 @@ export function Sidebar({
         </div>
       )}
 
-      <nav className="side-nav" aria-label="주요 메뉴">
+      <nav className="side-nav side-nav-primary" aria-label="주요 작업">
         <NavItem
           icon={<IconCompose size={14} />}
           label="작성"
+          desc="새 메일 초안"
           active={route === "compose"}
           href={hrefForRoute("compose")}
-          count="⌘N"
+          emphasis
           onNavigate={onCloseMobile}
         />
         <NavItem
           icon={<IconMail size={14} />}
           label="받은편지함"
+          desc="Gmail 답장 시작"
           active={route === "inbox"}
           href={hrefForRoute("inbox")}
-          onNavigate={onCloseMobile}
-        />
-        <NavItem
-          icon={<IconPeople size={14} />}
-          label="사람"
-          active={route === "people"}
-          href={hrefForRoute("people")}
-          count={personas.length}
-          onNavigate={onCloseMobile}
-        />
-        <NavItem
-          icon={<IconHistory size={14} />}
-          label="히스토리"
-          active={route === "history"}
-          href={hrefForRoute("history")}
-          count={historyCount}
-          onNavigate={onCloseMobile}
-        />
-        <NavItem
-          icon={<IconFormat size={14} />}
-          label="내 메일 형식"
-          active={route === "format"}
-          href={hrefForRoute("format")}
-          onNavigate={onCloseMobile}
-        />
-        <NavItem
-          icon={<IconSettings size={14} />}
-          label="설정"
-          active={route === "settings"}
-          href={hrefForRoute("settings")}
           onNavigate={onCloseMobile}
         />
       </nav>
@@ -324,22 +342,106 @@ export function Sidebar({
         </Link>
       </div>
 
-      <div className="side-foot">
-        <div className="avatar" style={{ background: "#dfe3da", fontSize: 11 }}>
-          {(user?.name || "M")
-            .split(/\s+/)
-            .map((part) => part[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase()}
+      <nav className="side-nav side-nav-secondary" aria-label="관리 메뉴">
+        <NavItem
+          icon={<IconPeople size={14} />}
+          label="사람"
+          desc="수신자 성향 관리"
+          active={route === "people"}
+          href={hrefForRoute("people")}
+          count={personas.length}
+          onNavigate={onCloseMobile}
+        />
+        <NavItem
+          icon={<IconHistory size={14} />}
+          label="히스토리"
+          desc="초안·발송 기록"
+          active={route === "history"}
+          href={hrefForRoute("history")}
+          count={historyCount}
+          onNavigate={onCloseMobile}
+        />
+        <NavItem
+          icon={<IconFormat size={14} />}
+          label="내 메일 형식"
+          desc="인사말·서명"
+          active={route === "format"}
+          href={hrefForRoute("format")}
+          onNavigate={onCloseMobile}
+        />
+        <NavItem
+          icon={<IconSettings size={14} />}
+          label="설정"
+          desc="계정·연동"
+          active={route === "settings"}
+          href={hrefForRoute("settings")}
+          onNavigate={onCloseMobile}
+        />
+      </nav>
+
+      <div className="side-foot-wrap" ref={accountMenuRef}>
+        <div className="side-foot">
+          <div
+            className="avatar"
+            style={{ background: "var(--accent-softer)", fontSize: 11 }}
+          >
+            {(user?.name || "M")
+              .split(/\s+/)
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </div>
+          <div className="grow">
+            <div className="side-foot-name">{user?.name || "로그인 사용자"}</div>
+            <div className="side-foot-mail">{user?.email || "mello@example.com"}</div>
+          </div>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="계정 메뉴"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onClick={() => setAccountMenuOpen((open) => !open)}
+          >
+            <IconMore size={14} />
+          </button>
         </div>
-        <div className="grow">
-          <div className="side-foot-name">{user?.name || "로그인 사용자"}</div>
-          <div className="side-foot-mail">{user?.email || "mello@example.com"}</div>
-        </div>
-        <button type="button" className="icon-btn" aria-label="더보기">
-          <IconMore size={14} />
-        </button>
+        {accountMenuOpen && (
+          <div className="side-account-menu" role="menu" aria-label="계정 메뉴">
+            <Link
+              href={hrefForRoute("settings")}
+              role="menuitem"
+              className="side-account-menu-item"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onCloseMobile();
+              }}
+            >
+              <IconSettings size={13} />
+              <span>
+                <span>계정 설정</span>
+                <small>프로필과 통합 상태</small>
+              </span>
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              className="side-account-menu-item"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                onCloseMobile();
+                onLogout();
+              }}
+            >
+              <IconLogout size={13} />
+              <span>
+                <span>로그아웃</span>
+                <small>현재 세션 종료</small>
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

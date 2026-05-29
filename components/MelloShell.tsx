@@ -20,6 +20,7 @@ import {
   type ReplyContext,
 } from "@/lib/api";
 import { normalizeEmailAddress } from "@/lib/email";
+import type { InitialLoadErrors } from "@/lib/server-api";
 import {
   hrefForRoute,
   labelForRoute,
@@ -30,7 +31,8 @@ import {
 } from "@/lib/routes";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { ToastStack, type ToastItem } from "./Toast";
+import { MobileBottomNav } from "./MobileBottomNav";
+import { ToastStack, enqueueToast, type ToastItem } from "./Toast";
 
 const TONE_PRESETS: Record<string, number> = {
   lead: 25,
@@ -79,6 +81,7 @@ type MelloContextValue = {
   setPersonas: (items: Persona[]) => void;
   history: HistoryItem[];
   format: MailFormat;
+  initialLoadErrors: InitialLoadErrors;
   setFormat: (format: MailFormat) => void;
   selectedId: string;
   setSelectedId: (id: string) => void;
@@ -114,6 +117,7 @@ type Props = {
   initialPersonas: Persona[];
   initialHistory: HistoryItem[];
   initialFormat: MailFormat;
+  initialLoadErrors: InitialLoadErrors;
 };
 
 export function MelloShell({
@@ -122,6 +126,7 @@ export function MelloShell({
   initialPersonas,
   initialHistory,
   initialFormat,
+  initialLoadErrors,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
@@ -154,12 +159,7 @@ export function MelloShell({
   );
 
   const showToast = useCallback((msg: string) => {
-    const id = Date.now() + Math.random();
-    setToasts((arr) => [...arr, { id, msg }]);
-    setTimeout(
-      () => setToasts((arr) => arr.filter((x) => x.id !== id)),
-      1800,
-    );
+    enqueueToast(setToasts, msg);
   }, []);
 
   useEffect(() => {
@@ -206,6 +206,17 @@ export function MelloShell({
     setReplyContext(null);
   }, [pathname, selectedId]);
 
+  useEffect(() => {
+    if (!pathname?.startsWith("/compose/reply/") || !selectedId) {
+      return;
+    }
+    setSelectedIdState("");
+    setTone(presetTone(undefined));
+    setLength(presetLength(undefined));
+    setBrief("");
+    setReplyContext(null);
+  }, [pathname, selectedId]);
+
   const setSelectedId = useCallback(
     (id: string) => {
       applyPersona(id, { clearReply: true });
@@ -223,7 +234,9 @@ export function MelloShell({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
         const input = document.querySelector<HTMLInputElement>(".side-search input");
         input?.focus();
       }
@@ -327,6 +340,7 @@ export function MelloShell({
       setPersonas,
       history,
       format,
+      initialLoadErrors,
       setFormat,
       selectedId,
       setSelectedId,
@@ -352,6 +366,7 @@ export function MelloShell({
       handleReply,
       history,
       initialMe,
+      initialLoadErrors,
       length,
       personas,
       replyContext,
@@ -388,6 +403,7 @@ export function MelloShell({
           user={initialMe.user ?? null}
           mobileOpen={mobileDrawerOpen}
           onCloseMobile={closeMobileDrawer}
+          onLogout={() => void handleLogout()}
         />
 
         <main className="main">
@@ -400,6 +416,7 @@ export function MelloShell({
           />
 
           <div className="main-scroll thin-scroll">{children}</div>
+          <MobileBottomNav route={route} />
           <ToastStack items={toasts} />
         </main>
       </div>

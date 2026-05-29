@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { HistoryItem, MailFormat, Persona } from "@/lib/data";
 import {
   api,
   generateDraft,
+  startGoogleLogin,
   toFiveStepScale,
+  type DraftChatMessage,
+  type DraftSession,
   type ReplyContext,
 } from "@/lib/api";
 import { emailsMatch, extractEmailAddress } from "@/lib/email";
@@ -14,6 +18,8 @@ import {
   IconCheck,
   IconClose,
   IconCopy,
+  IconHistory,
+  IconPlus,
   IconRefresh,
   IconSend,
   IconSparkle,
@@ -42,8 +48,15 @@ function RecipientPicker({
         setOpen(false);
       }
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
     window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   return (
@@ -253,8 +266,126 @@ type DraftState = {
   history: HistoryItem | null;
 };
 
+const DRAFT_QUERY_PARAM = "draftId";
+const SEND_RECOVERY_DRAFT_KEY = "mello:send-recovery-draft";
+const SEND_RECOVERY_DRAFT_TTL_MS = 30 * 60 * 1000;
+const REVISION_SUGGESTIONS = [
+  "더 짧고 핵심만 남겨줘",
+  "더 정중하게 다듬어줘",
+  "결론이 먼저 보이게 바꿔줘",
+  "부드럽지만 명확하게 써줘",
+];
+
+type SendRecoveryDraftSnapshot = DraftState & {
+  path: string;
+  personaId: string;
+  replyContextId: string | null;
+  savedAt: number;
+};
+
+function needsGoogleReauth(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /권한|재인증|다시 로그인|Google 연결/.test(error.message);
+}
+
+function isHistoryItem(value: unknown): value is HistoryItem {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+function readSendRecoveryDraft(): SendRecoveryDraftSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SEND_RECOVERY_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SendRecoveryDraftSnapshot>;
+    if (
+      typeof parsed.path !== "string" ||
+      typeof parsed.personaId !== "string" ||
+      typeof parsed.savedAt !== "number" ||
+      Date.now() - parsed.savedAt > SEND_RECOVERY_DRAFT_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(SEND_RECOVERY_DRAFT_KEY);
+      return null;
+    }
+    return {
+      path: parsed.path,
+      personaId: parsed.personaId,
+      replyContextId: parsed.replyContextId || null,
+      subject: typeof parsed.subject === "string" ? parsed.subject : "",
+      body: typeof parsed.body === "string" ? parsed.body : "",
+      history: isHistoryItem(parsed.history) ? parsed.history : null,
+      savedAt: parsed.savedAt,
+    };
+  } catch {
+    window.sessionStorage.removeItem(SEND_RECOVERY_DRAFT_KEY);
+    return null;
+  }
+}
+
+function clearSendRecoveryDraft() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(SEND_RECOVERY_DRAFT_KEY);
+}
+
+function compactChatText(value: string, maxLength = 240): string {
+  const normalized = value.trim().replace(/\n{3,}/g, "\n\n");
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function replaceDraftIdInUrl(historyId: string | null) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (historyId) {
+    url.searchParams.set(DRAFT_QUERY_PARAM, historyId);
+  } else {
+    url.searchParams.delete(DRAFT_QUERY_PARAM);
+  }
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function scaleFromHistory(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 50;
+  const numericValue = Number(value);
+  if (numericValue >= 1 && numericValue <= 5) {
+    return (numericValue - 1) * 25;
+  }
+  return toFiveStepScale(numericValue);
+}
+
+function chatMessagePreview(message: DraftChatMessage): string {
+  if (message.role === "user") return compactChatText(message.content);
+  const bodyPreview = compactChatText(message.content || "", 180);
+  if (message.subject && bodyPreview) {
+    return `제목: ${message.subject}\n${bodyPreview}`;
+  }
+  return message.subject
+    ? `제목: ${message.subject}`
+    : bodyPreview || "초안을 수정했습니다.";
+}
+
+function draftResumeHref(item: HistoryItem): string {
+  const draftQuery = `draftId=${encodeURIComponent(item.id)}`;
+  const replyId = item.replyContextId?.trim();
+  const personaId = item.personaId?.trim();
+
+  if (replyId && personaId) {
+    return `/compose/${encodeURIComponent(personaId)}/reply/${encodeURIComponent(
+      replyId,
+    )}?${draftQuery}`;
+  }
+  if (replyId) return `/compose/reply/${encodeURIComponent(replyId)}?${draftQuery}`;
+  if (personaId) return `/compose/${encodeURIComponent(personaId)}?${draftQuery}`;
+  return `/compose?${draftQuery}`;
+}
+
 type Props = {
   personas: Persona[];
+  history: HistoryItem[];
   format: MailFormat;
   onToast: (message: string) => void;
   selectedId: string;
@@ -269,10 +400,12 @@ type Props = {
   onClearReplyContext: () => void;
   onHistoryCreated: (item: HistoryItem) => void;
   onHistoryUpdated: (item: HistoryItem) => void;
+  initialDraftSession?: DraftSession | null;
 };
 
 export function ComposerScreen({
   personas,
+  history,
   format,
   onToast,
   selectedId,
@@ -287,24 +420,56 @@ export function ComposerScreen({
   onClearReplyContext,
   onHistoryCreated,
   onHistoryUpdated,
+  initialDraftSession = null,
 }: Props) {
   const persona = useMemo(
     () => personas.find((item) => item.id === selectedId),
     [personas, selectedId],
   );
-  const [draft, setDraft] = useState<DraftState | null>(null);
+  const personaById = useMemo(
+    () => new Map(personas.map((item) => [item.id, item])),
+    [personas],
+  );
+  const [draft, setDraft] = useState<DraftState | null>(() =>
+    initialDraftSession
+      ? {
+          subject:
+            initialDraftSession.history.subject ||
+            initialDraftSession.history.subj ||
+            "",
+          body: initialDraftSession.history.body || "",
+          history: initialDraftSession.history,
+        }
+      : null,
+  );
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reauthorizingSend, setReauthorizingSend] = useState(false);
+  const [sendRecoveryError, setSendRecoveryError] = useState<string | null>(
+    null,
+  );
   const [formatExpanded, setFormatExpanded] = useState(false);
+  const [draftEditedSinceGenerate, setDraftEditedSinceGenerate] =
+    useState(false);
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
+  const reauthorizingSendRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSeqRef = useRef(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const draftChatLogRef = useRef<HTMLDivElement>(null);
+  const resultBodyRef = useRef<HTMLTextAreaElement>(null);
   const [draftSaveState, setDraftSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [draftChatMessages, setDraftChatMessages] = useState<
+    DraftChatMessage[]
+  >(initialDraftSession?.messages ?? []);
+  const [draftChatLoading, setDraftChatLoading] = useState(false);
+  const [revisionText, setRevisionText] = useState("");
+  const [revising, setRevising] = useState(false);
+  const [draftListOpen, setDraftListOpen] = useState(false);
 
   useEffect(() => {
     if (!taRef.current) return;
@@ -313,25 +478,112 @@ export function ComposerScreen({
       Math.min(260, Math.max(96, taRef.current.scrollHeight)) + "px";
   }, [brief]);
 
+  useEffect(() => {
+    if (!initialDraftSession) return;
+    const history = initialDraftSession.history;
+    setBrief(history.brief || "");
+    setTone(scaleFromHistory(history.toneValue));
+    setLength(scaleFromHistory(history.lengthValue));
+    setDraftSaveState(history.status === "draft" ? "saved" : "idle");
+    setDraftEditedSinceGenerate(false);
+    onHistoryUpdated(history);
+  }, [initialDraftSession, onHistoryUpdated, setBrief, setLength, setTone]);
+
   const toneOption = selectedScaleOption(TONE_SCALE, tone);
   const lengthOption = selectedScaleOption(LENGTH_SCALE, length);
   const toneLabel = toneOption.label;
   const lengthLabel = lengthOption.label;
 
   const canGenerate = !!brief.trim() || !!replyContext;
+  const draftAlreadySent = draft?.history?.status === "sent";
   const canRequestGenerate = canGenerate && !generating;
   const canSend =
     !!draft?.subject.trim() &&
     !!draft?.body.trim() &&
     !generating &&
     !sending &&
+    !sendRecoveryError &&
+    !draftAlreadySent &&
     (!!replyContext || !!persona?.email);
   const canEditDraft =
     !!draft && !generating && draft.history?.status !== "sent";
   const canResetDraft =
     canEditDraft && !sending && (!!draft?.subject.trim() || !!draft?.body.trim());
+  const activeHistoryId = draft?.history?.id || null;
+  const showDraftChat = !!activeHistoryId && draft?.history?.status !== "sent";
+  const savedDrafts = useMemo(
+    () =>
+      history
+        .filter((item) => {
+          if (item.status === "sent") return false;
+          return !!(
+            item.subject ||
+            item.subj ||
+            item.body ||
+            item.prev ||
+            item.brief
+          );
+        })
+        .slice(0, 5),
+    [history],
+  );
+  const canReviseDraft =
+    !!activeHistoryId &&
+    !!revisionText.trim() &&
+    canEditDraft &&
+    !generating &&
+    !sending &&
+    !revising;
   const currentSubject = draft?.subject || "";
   const currentBody = draft?.body || "";
+
+  const resizeResultBody = useCallback(() => {
+    const resultBody = resultBodyRef.current;
+    if (!resultBody || generating) return undefined;
+    resultBody.style.height = "auto";
+    resultBody.style.height = `${Math.max(220, resultBody.scrollHeight)}px`;
+    return undefined;
+  }, [generating]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(resizeResultBody);
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentBody, resizeResultBody, showDraftChat]);
+
+  useEffect(() => {
+    window.addEventListener("resize", resizeResultBody);
+    return () => window.removeEventListener("resize", resizeResultBody);
+  }, [resizeResultBody]);
+
+  const draftTargetLabel = useCallback(
+    (item: HistoryItem) => {
+      const draftPersona = item.personaId
+        ? personaById.get(item.personaId)
+        : undefined;
+      return (
+        item.targetName ||
+        item.personaName ||
+        item.counterpartyName ||
+        draftPersona?.name ||
+        item.replyFromAddr ||
+        "대상 미확인"
+      );
+    },
+    [personaById],
+  );
+
+  useEffect(() => {
+    if (savedDrafts.length === 0) setDraftListOpen(false);
+  }, [savedDrafts.length]);
+
+  useEffect(() => {
+    if (!showDraftChat || !draftChatLogRef.current) return;
+    const chatLog = draftChatLogRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      chatLog.scrollTo({ top: chatLog.scrollHeight, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [showDraftChat, draftChatMessages, draftChatLoading, revising]);
 
   const clearPendingDraftSave = useCallback(() => {
     if (draftSaveTimerRef.current) {
@@ -341,6 +593,52 @@ export function ComposerScreen({
   }, []);
 
   useEffect(() => clearPendingDraftSave, [clearPendingDraftSave]);
+
+  useEffect(() => {
+    const snapshot = readSendRecoveryDraft();
+    if (!snapshot) return;
+    const currentPath = `${window.location.pathname}${
+      window.location.search || ""
+    }`;
+    if (
+      snapshot.path !== currentPath ||
+      snapshot.personaId !== selectedId ||
+      snapshot.replyContextId !== (replyContext?.id || null)
+    ) {
+      return;
+    }
+    if (!snapshot.subject.trim() && !snapshot.body.trim()) {
+      clearSendRecoveryDraft();
+      return;
+    }
+    setDraft({
+      subject: snapshot.subject,
+      body: snapshot.body,
+      history: snapshot.history,
+    });
+    setDraftEditedSinceGenerate(true);
+    setDraftSaveState(snapshot.history?.status === "draft" ? "saved" : "idle");
+    setSendRecoveryError(null);
+    clearSendRecoveryDraft();
+    onToast("재동의 전 작성하던 초안을 복원했습니다.");
+  }, [onToast, replyContext?.id, selectedId]);
+
+  const persistSendRecoveryDraft = useCallback(() => {
+    if (!draft) return;
+    const snapshot: SendRecoveryDraftSnapshot = {
+      path: `${window.location.pathname}${window.location.search || ""}`,
+      personaId: selectedId,
+      replyContextId: replyContext?.id || null,
+      subject: draft.subject,
+      body: draft.body,
+      history: draft.history,
+      savedAt: Date.now(),
+    };
+    window.sessionStorage.setItem(
+      SEND_RECOVERY_DRAFT_KEY,
+      JSON.stringify(snapshot),
+    );
+  }, [draft, replyContext?.id, selectedId]);
 
   const applyDraftHistory = useCallback(
     (history: HistoryItem) => {
@@ -357,6 +655,25 @@ export function ComposerScreen({
       );
     },
     [onHistoryUpdated],
+  );
+
+  const loadDraftMessages = useCallback(
+    async (historyId: string) => {
+      setDraftChatLoading(true);
+      try {
+        const messages = await api.historyDraftMessages(historyId);
+        setDraftChatMessages(messages);
+      } catch (error) {
+        onToast(
+          error instanceof Error
+            ? error.message
+            : "수정 요청 내역을 불러오지 못했습니다.",
+        );
+      } finally {
+        setDraftChatLoading(false);
+      }
+    },
+    [onToast],
   );
 
   const scheduleDraftSave = useCallback(
@@ -390,6 +707,7 @@ export function ComposerScreen({
 
   const editDraftBody = useCallback(
     (body: string) => {
+      setDraftEditedSinceGenerate(true);
       setDraft((current) => {
         if (!current) return current;
         const next = { ...current, body };
@@ -407,6 +725,7 @@ export function ComposerScreen({
 
   const editDraftSubject = useCallback(
     (subject: string) => {
+      setDraftEditedSinceGenerate(true);
       setDraft((current) => {
         if (!current) return current;
         const next = { ...current, subject };
@@ -424,10 +743,23 @@ export function ComposerScreen({
 
   const runGenerate = useCallback(async () => {
     if (!canRequestGenerate) return;
+    const previousDraftEdited = draftEditedSinceGenerate;
+    if (
+      previousDraftEdited &&
+      draft &&
+      !window.confirm("수정한 초안을 새 생성 결과로 덮어쓸까요?")
+    ) {
+      return;
+    }
+    const previousHistoryId = draft?.history?.id || null;
     clearPendingDraftSave();
     draftSaveSeqRef.current += 1;
     setDraftSaveState("idle");
+    setSendRecoveryError(null);
+    setDraftChatMessages([]);
+    replaceDraftIdInUrl(null);
     const previousDraft = draft;
+    setDraftEditedSinceGenerate(false);
     let receivedDelta = false;
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -459,11 +791,21 @@ export function ComposerScreen({
           onDone: (result) => {
             if (requestRef.current !== requestId) return;
             setDraft(result);
-            if (result.history) onHistoryCreated(result.history);
+            setDraftEditedSinceGenerate(false);
+            if (result.history) {
+              onHistoryCreated(result.history);
+              replaceDraftIdInUrl(result.history.id);
+              void loadDraftMessages(result.history.id);
+            }
           },
           onError: (message) => {
             if (requestRef.current !== requestId) return;
             setDraft(previousDraft);
+            setDraftEditedSinceGenerate(previousDraftEdited);
+            if (previousHistoryId) {
+              replaceDraftIdInUrl(previousHistoryId);
+              void loadDraftMessages(previousHistoryId);
+            }
             onToast(message);
           },
         },
@@ -472,6 +814,11 @@ export function ComposerScreen({
     } catch (error) {
       if (controller.signal.aborted) return;
       setDraft(previousDraft);
+      setDraftEditedSinceGenerate(previousDraftEdited);
+      if (previousHistoryId) {
+        replaceDraftIdInUrl(previousHistoryId);
+        void loadDraftMessages(previousHistoryId);
+      }
       onToast(error instanceof Error ? error.message : "초안 생성에 실패했습니다.");
     } finally {
       if (requestRef.current === requestId) setGenerating(false);
@@ -481,7 +828,9 @@ export function ComposerScreen({
     canRequestGenerate,
     clearPendingDraftSave,
     draft,
+    draftEditedSinceGenerate,
     lengthOption.value,
+    loadDraftMessages,
     onHistoryCreated,
     onToast,
     persona?.id,
@@ -491,7 +840,15 @@ export function ComposerScreen({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        const target = event.target as HTMLElement | null;
+        const isResultEditor =
+          target?.closest("[data-testid='result-panel']") &&
+          (target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement);
+        if (isResultEditor) return;
+        event.preventDefault();
         void runGenerate();
       }
     };
@@ -512,10 +869,18 @@ export function ComposerScreen({
     if (!draft?.subject.trim() || !draft?.body.trim() || sendingRef.current) {
       return;
     }
+    setSendRecoveryError(null);
+    if (draft.history?.status === "sent") {
+      onToast("이미 발송된 초안입니다.");
+      return;
+    }
     if (!replyContext && !persona?.email) {
       onToast("받는 사람 이메일이 필요합니다.");
       return;
     }
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    setDraftSaveState("idle");
     sendingRef.current = true;
     setSending(true);
     try {
@@ -539,14 +904,172 @@ export function ComposerScreen({
             : current,
         );
       }
+      setDraftEditedSinceGenerate(false);
+      setSendRecoveryError(null);
+      clearSendRecoveryDraft();
       onToast("Gmail로 발송되었습니다");
     } catch (error) {
-      onToast(error instanceof Error ? error.message : "메일 발송에 실패했습니다.");
+      const message = error instanceof Error ? error.message : "메일 발송에 실패했습니다.";
+      if (needsGoogleReauth(error)) {
+        setSendRecoveryError(message);
+      }
+      onToast(message);
     } finally {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [draft, onHistoryUpdated, onToast, persona?.email, replyContext]);
+  }, [
+    clearPendingDraftSave,
+    draft,
+    onHistoryUpdated,
+    onToast,
+    persona?.email,
+    replyContext,
+  ]);
+
+  const reauthorizeSend = useCallback(async () => {
+    if (reauthorizingSendRef.current) return;
+    reauthorizingSendRef.current = true;
+    setReauthorizingSend(true);
+    try {
+      persistSendRecoveryDraft();
+      const returnPath = `${window.location.pathname}${
+        window.location.search || ""
+      }`;
+      window.location.href = await startGoogleLogin(returnPath || "/compose");
+    } catch (error) {
+      reauthorizingSendRef.current = false;
+      setReauthorizingSend(false);
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
+  }, [onToast, persistSendRecoveryDraft]);
+
+  const runRevision = useCallback(async () => {
+    const historyId = activeHistoryId;
+    const message = revisionText.trim();
+    if (!historyId) {
+      onToast("먼저 초안을 생성해주세요.");
+      return;
+    }
+    if (!message || revising) return;
+
+    setRevising(true);
+    setSendRecoveryError(null);
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    setDraftSaveState("saving");
+    try {
+      const result = await api.reviseHistoryDraft(historyId, message);
+      setDraft({
+        subject: result.history.subject || result.history.subj || "",
+        body: result.history.body || "",
+        history: result.history,
+      });
+      onHistoryUpdated(result.history);
+      setDraftChatMessages(result.messages);
+      setRevisionText("");
+      setDraftEditedSinceGenerate(false);
+      setDraftSaveState("saved");
+      replaceDraftIdInUrl(result.history.id);
+      onToast("수정 요청을 반영했습니다.");
+    } catch (error) {
+      setDraftSaveState("error");
+      onToast(error instanceof Error ? error.message : "초안을 수정하지 못했습니다.");
+    } finally {
+      setRevising(false);
+    }
+  }, [
+    activeHistoryId,
+    clearPendingDraftSave,
+    onHistoryUpdated,
+    onToast,
+    revisionText,
+    revising,
+  ]);
+
+  const saveTemporaryDraft = useCallback(async () => {
+    const historyId = activeHistoryId;
+    if (!historyId || !canEditDraft) {
+      onToast("초안 생성 후 임시저장할 수 있습니다.");
+      return;
+    }
+
+    clearPendingDraftSave();
+    draftSaveSeqRef.current += 1;
+    setDraftSaveState("saving");
+    try {
+      const historyItem = await api.updateHistoryDraft(historyId, {
+        subject: currentSubject,
+        body: currentBody,
+      });
+      applyDraftHistory(historyItem);
+      setDraftEditedSinceGenerate(false);
+      setDraftSaveState("saved");
+      replaceDraftIdInUrl(historyItem.id);
+      onToast("임시저장했습니다.");
+    } catch (error) {
+      setDraftSaveState("error");
+      onToast(error instanceof Error ? error.message : "임시저장하지 못했습니다.");
+    }
+  }, [
+    activeHistoryId,
+    applyDraftHistory,
+    canEditDraft,
+    clearPendingDraftSave,
+    currentBody,
+    currentSubject,
+    onToast,
+  ]);
+
+  const startNewDraft = useCallback(async () => {
+    if (generating || sending || revising) return;
+
+    const historyId = draft?.history?.id;
+    if (historyId && draft.history?.status !== "sent") {
+      clearPendingDraftSave();
+      draftSaveSeqRef.current += 1;
+      setDraftSaveState("saving");
+      try {
+        const history = await api.updateHistoryDraft(historyId, {
+          subject: currentSubject,
+          body: currentBody,
+        });
+        onHistoryUpdated(history);
+      } catch (error) {
+        setDraftSaveState("error");
+        onToast(
+          error instanceof Error
+            ? error.message
+            : "현재 초안을 저장하지 못했습니다.",
+        );
+        return;
+      }
+    }
+
+    abortRef.current?.abort();
+    setDraft(null);
+    setDraftChatMessages([]);
+    setRevisionText("");
+    setDraftEditedSinceGenerate(false);
+    setDraftSaveState("idle");
+    setSendRecoveryError(null);
+    setBrief("");
+    replaceDraftIdInUrl(null);
+    onToast("새 메일 작성을 시작합니다.");
+  }, [
+    clearPendingDraftSave,
+    currentBody,
+    currentSubject,
+    draft,
+    generating,
+    onHistoryUpdated,
+    onToast,
+    revising,
+    sending,
+    setBrief,
+  ]);
 
   const resetDraft = useCallback(async () => {
     if (!draft || !canResetDraft) return;
@@ -556,6 +1079,7 @@ export function ComposerScreen({
     const historyId = draft.history?.id;
     if (!historyId) {
       setDraft({ ...draft, subject: "", body: "" });
+      setDraftEditedSinceGenerate(false);
       setDraftSaveState("idle");
       onToast("초안을 비웠습니다");
       return;
@@ -564,6 +1088,7 @@ export function ComposerScreen({
     try {
       const history = await api.resetHistoryDraft(historyId);
       applyDraftHistory(history);
+      setDraftEditedSinceGenerate(false);
       setDraftSaveState("saved");
       onToast("초안을 비웠습니다");
     } catch (error) {
@@ -578,8 +1103,91 @@ export function ComposerScreen({
     onToast,
   ]);
 
+  const draftChatPanel = showDraftChat ? (
+    <aside
+      className="draft-chat"
+      data-testid="draft-chat-panel"
+      aria-label="초안 수정 요청 대화"
+    >
+      <div className="draft-chat-head">
+        <div>
+          <div className="draft-chat-title">수정 요청</div>
+          <div className="draft-chat-meta">
+            {draftChatLoading
+              ? "불러오는 중"
+              : `${draftChatMessages.length}개 기록`}
+          </div>
+        </div>
+        <span className="tag blue">저장됨</span>
+      </div>
+
+      <div
+        ref={draftChatLogRef}
+        className="draft-chat-log thin-scroll"
+        aria-live="polite"
+      >
+        {draftChatMessages.length === 0 && !draftChatLoading ? (
+          <div className="draft-chat-empty">아직 수정 요청이 없습니다.</div>
+        ) : (
+          draftChatMessages.map((message) => (
+            <div
+              key={message.id}
+              className={`draft-chat-message is-${message.role}`}
+            >
+              <span className="draft-chat-role">
+                {message.role === "user" ? "나" : "Mello"}
+              </span>
+              <span>{chatMessagePreview(message)}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="draft-chat-suggestions">
+        {REVISION_SUGGESTIONS.map((suggestion) => (
+          <button
+            key={suggestion}
+            type="button"
+            className="draft-chat-chip"
+            onClick={() => setRevisionText(suggestion)}
+            disabled={revising || generating || sending}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+
+      <div className="draft-chat-form">
+        <textarea
+          value={revisionText}
+          onChange={(event) => setRevisionText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              void runRevision();
+            }
+          }}
+          placeholder="예: 너무 길어. 결론을 먼저 쓰고 일정은 부드럽게 말해줘."
+          disabled={revising || generating || sending}
+          data-testid="revision-input"
+        />
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => void runRevision()}
+          disabled={!canReviseDraft}
+          data-testid="revise-btn"
+        >
+          <IconSparkle size={14} />
+          {revising ? "수정 중" : "반영"}
+        </button>
+      </div>
+    </aside>
+  ) : null;
+
   return (
-    <div className="page">
+    <div className={"page" + (showDraftChat ? " has-draft-chat" : "")}>
       <div>
         <div className="section-label">받는 사람</div>
         <RecipientCard
@@ -612,11 +1220,24 @@ export function ComposerScreen({
       )}
 
       <div>
-        <div className="section-label row between">
+        <div className="section-label row between compose-section-label">
           <span>전달할 내용</span>
-          <span className="section-help">
-            답장에서는 비워둬도 원문 맥락으로 작성합니다
-          </span>
+          <div className="compose-section-actions">
+            <span className="section-help">
+              답장에서는 비워둬도 원문 맥락으로 작성합니다
+            </span>
+            <button
+              type="button"
+              className="btn-secondary draft-list-toggle"
+              onClick={() => setDraftListOpen((value) => !value)}
+              aria-expanded={draftListOpen}
+              aria-controls="draft-resume-panel"
+              disabled={savedDrafts.length === 0}
+            >
+              <IconHistory size={13} />
+              임시저장 {savedDrafts.length}
+            </button>
+          </div>
         </div>
         <div className="card">
           <textarea
@@ -666,7 +1287,7 @@ export function ComposerScreen({
             </button>
             <span className="foot-spacer" />
             <span className="foot-hint">
-              <kbd>⌘</kbd> <kbd>↵</kbd> 작성 요청
+              <kbd>⌘</kbd> <kbd>↵</kbd> 초안 생성
             </span>
             <button
               type="button"
@@ -676,14 +1297,75 @@ export function ComposerScreen({
               data-testid="generate-btn"
             >
               <IconSparkle size={14} />
-              {generating ? "작성 중" : "Mello에게 작성 요청"}
+              {generating ? "작성 중" : "Mello 초안 생성"}
             </button>
           </div>
         </div>
       </div>
 
+      {draftListOpen && savedDrafts.length > 0 && (
+        <section
+          id="draft-resume-panel"
+          className="draft-resume-panel"
+          aria-label="임시저장 내역"
+        >
+          <div className="draft-resume-head">
+            <div>
+              <div className="draft-resume-title">임시저장 목록</div>
+              <div className="draft-resume-desc">
+                최근 5개 초안을 선택해 이어서 작성할 수 있습니다.
+              </div>
+            </div>
+            <Link href="/history" className="btn-secondary draft-resume-all">
+              전체 보기
+            </Link>
+          </div>
+          <div className="draft-resume-list">
+            {savedDrafts.map((item) => {
+              const isCurrent = activeHistoryId === item.id;
+              const draftSubject =
+                item.subject || item.subj || item.brief || "제목 없는 초안";
+              const draftPreview =
+                item.prev || item.body || item.brief || "작성 중인 초안";
+              const resumeHref = draftResumeHref(item);
+              return (
+                <a
+                  key={item.id}
+                  href={resumeHref}
+                  className={
+                    "draft-resume-item" + (isCurrent ? " is-current" : "")
+                  }
+                  aria-current={isCurrent ? "true" : undefined}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    window.location.href = resumeHref;
+                  }}
+                >
+                  <div className="draft-resume-copy">
+                    <div className="draft-resume-subject">{draftSubject}</div>
+                    <div className="draft-resume-preview">{draftPreview}</div>
+                    <div className="draft-resume-meta">
+                      <span>{draftTargetLabel(item)}</span>
+                      <span>{item.when || "임시저장"}</span>
+                    </div>
+                  </div>
+                  <span className={`tag ${isCurrent ? "green" : "blue"}`}>
+                    {isCurrent ? "현재" : "불러오기"}
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {(draft || generating) && (
-        <div className="result" data-testid="result-panel">
+        <div
+          className={
+            "draft-workspace" + (showDraftChat ? " has-draft-chat" : "")
+          }
+        >
+          <div className="result" data-testid="result-panel">
           <div className="result-h">
             <div className="result-title" role="status" aria-live="polite">
               {generating ? (
@@ -694,7 +1376,7 @@ export function ComposerScreen({
               ) : (
                 <>
                   <IconSparkle size={14} style={{ color: "var(--accent)" }} />
-                  <span>작성 결과</span>
+                  <span>메일 초안</span>
                 </>
               )}
             </div>
@@ -729,90 +1411,109 @@ export function ComposerScreen({
             </div>
           </div>
 
-          {(draft?.subject || (!generating && draft)) && (
-            <div className="result-subject">
-              <span>제목</span>
+            <div className="result-main">
+              {(draft?.subject || (!generating && draft)) && (
+                <div className="result-subject">
+                  <span>제목</span>
+                  {generating ? (
+                    <b>{currentSubject}</b>
+                  ) : (
+                    <input
+                      aria-label="작성 결과 제목 편집"
+                      data-testid="result-subject"
+                      value={currentSubject}
+                      onChange={(event) => editDraftSubject(event.target.value)}
+                      readOnly={!canEditDraft}
+                      placeholder="제목을 입력하세요"
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        border: 0,
+                        background: "transparent",
+                        color: "var(--text)",
+                        font: "inherit",
+                        fontWeight: 600,
+                        outline: "none",
+                        padding: 0,
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+
               {generating ? (
-                <b>{currentSubject}</b>
+                <div className="result-body" data-testid="result-body">
+                  {currentBody}
+                  <span className="cursor" aria-hidden />
+                </div>
               ) : (
-                <input
-                  aria-label="작성 결과 제목 편집"
-                  data-testid="result-subject"
-                  value={currentSubject}
-                  onChange={(event) => editDraftSubject(event.target.value)}
+                <textarea
+                  ref={resultBodyRef}
+                  className="result-body"
+                  data-testid="result-body"
+                  aria-label="작성 결과 본문 편집"
+                  value={currentBody}
+                  onChange={(event) => editDraftBody(event.target.value)}
                   readOnly={!canEditDraft}
-                  placeholder="제목을 입력하세요"
+                  rows={8}
                   style={{
-                    flex: 1,
-                    minWidth: 0,
+                    width: "100%",
                     border: 0,
                     background: "transparent",
-                    color: "var(--text)",
-                    font: "inherit",
-                    fontWeight: 600,
                     outline: "none",
-                    padding: 0,
+                    resize: "none",
+                    overflow: "hidden",
+                    display: "block",
+                    fontFamily: "inherit",
                   }}
                 />
               )}
-            </div>
-          )}
 
-          {generating ? (
-            <div className="result-body thin-scroll" data-testid="result-body">
-              {currentBody}
-              <span className="cursor" aria-hidden />
+              <div className="result-analysis">
+                <span className="analysis-label">반영</span>
+                <span className="tag amber">{toneLabel}</span>
+                <span className="tag green">{lengthLabel}</span>
+                {replyContext && <span className="tag blue">답장 컨텍스트</span>}
+                {draft?.history?.id && draft.history.status !== "sent" && (
+                  <span
+                    className={`tag ${
+                      draftSaveState === "error"
+                        ? "amber"
+                        : draftSaveState === "saving"
+                          ? "gray"
+                          : "green"
+                    }`}
+                  >
+                    {draftSaveState === "saving"
+                      ? "저장 중"
+                      : draftSaveState === "error"
+                        ? "저장 실패"
+                        : "서버 저장됨"}
+                  </span>
+                )}
+                {draft?.history?.status && (
+                  <span className={`tag ${draft.history.status === "sent" ? "green" : "gray"}`}>
+                    {draft.history.status === "sent" ? "발송 완료" : "초안"}
+                  </span>
+                )}
+              </div>
             </div>
-          ) : (
-            <textarea
-              className="result-body thin-scroll"
-              data-testid="result-body"
-              aria-label="작성 결과 본문 편집"
-              value={currentBody}
-              onChange={(event) => editDraftBody(event.target.value)}
-              readOnly={!canEditDraft}
-              style={{
-                width: "100%",
-                border: 0,
-                background: "transparent",
-                outline: "none",
-                resize: "vertical",
-                display: "block",
-                fontFamily: "inherit",
-              }}
-            />
-          )}
-
-          <div className="result-analysis">
-            <span className="analysis-label">반영</span>
-            <span className="tag amber">{toneLabel}</span>
-            <span className="tag green">{lengthLabel}</span>
-            {replyContext && <span className="tag blue">답장 컨텍스트</span>}
-            {draft?.history?.id && draft.history.status !== "sent" && (
-              <span
-                className={`tag ${
-                  draftSaveState === "error"
-                    ? "amber"
-                    : draftSaveState === "saving"
-                      ? "gray"
-                      : "green"
-                }`}
-              >
-                {draftSaveState === "saving"
-                  ? "저장 중"
-                  : draftSaveState === "error"
-                    ? "저장 실패"
-                    : "수동 편집 가능"}
-              </span>
-            )}
-            {draft?.history?.status && (
-              <span className={`tag ${draft.history.status === "sent" ? "green" : "gray"}`}>
-                {draft.history.status}
-              </span>
-            )}
-          </div>
 
           <div className="result-foot">
+            {sendRecoveryError && (
+              <div className="send-recovery" role="alert">
+                <span>{sendRecoveryError}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void reauthorizeSend()}
+                  disabled={reauthorizingSend}
+                >
+                  <IconRefresh size={13} />
+                  {reauthorizingSend ? "재동의 중" : "Google 재동의"}
+                </button>
+              </div>
+            )}
             <span className="format-pill">
               <b>형식</b>
               <span style={{ color: "var(--text-3)" }}>· 인사말/서명 적용</span>
@@ -822,6 +1523,22 @@ export function ComposerScreen({
               <span style={{ color: "var(--text-3)" }}>· Gmail</span>
             </span>
             <div className="result-spacer" />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void saveTemporaryDraft()}
+              disabled={!canEditDraft || generating || sending || revising}
+            >
+              <IconCheck size={14} /> 임시저장
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void startNewDraft()}
+              disabled={generating || sending || revising}
+            >
+              <IconPlus size={14} /> 새 메일
+            </button>
             <button
               type="button"
               className="btn-secondary"
@@ -852,9 +1569,11 @@ export function ComposerScreen({
               data-testid="send-btn"
             >
               <IconSend size={14} />
-              {sending ? "보내는 중" : "보내기"}
+              {draftAlreadySent ? "발송 완료" : sending ? "보내는 중" : "보내기"}
             </button>
           </div>
+          </div>
+          {draftChatPanel}
         </div>
       )}
     </div>

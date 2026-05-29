@@ -40,21 +40,21 @@ type AuthDemo = {
 
 const AUTH_DEMOS: AuthDemo[] = [
   {
-    persona: { name: "김지훈 팀장", mbti: "ENTJ", color: "#e8dfd1", avatar: "KJ" },
+    persona: { name: "김지훈 팀장", mbti: "ENTJ", color: "#ecf0ff", avatar: "KJ" },
     before: "개발 일정 하루 늦어질 것 같음. 내일까지는 완료.",
     after:
       "결제 모듈 일정 1일 지연됩니다.\n내일 18시까지 완료 후 보고드리겠습니다.",
     keyword: "직설 · 결론 먼저",
   },
   {
-    persona: { name: "정다은", mbti: "ENFP", color: "#efd9d3", avatar: "JD" },
+    persona: { name: "정다은", mbti: "ENFP", color: "#fff4c2", avatar: "JD" },
     before: "오늘 약속 못 갈 듯. 미안하고 다음에 보자.",
     after:
       "다은아 진짜 가고 싶었는데 일정이 생겨버렸어 ㅠㅠ\n갑자기 말해서 너무 미안해. 이번 주에 꼭 다시 잡자!",
     keyword: "따뜻 · 사과 명확",
   },
   {
-    persona: { name: "박서연 책임", mbti: "ISTJ", color: "#dfe3da", avatar: "PS" },
+    persona: { name: "박서연 책임", mbti: "ISTJ", color: "#ede9fe", avatar: "PS" },
     before: "회의 시간 바꾸고 싶음. 15일 3시나 16일 10시 가능.",
     after:
       "안녕하세요, 박 책임님.\n회의 일정 변경 가능 여부 문의드립니다.\n5/15(목) 15:00 또는 5/16(금) 10:00 중 회신 부탁드립니다.",
@@ -190,15 +190,9 @@ export function LoginScreen({ onToast }: Props) {
             <span className="auth-int-icon" title="Google Contacts">
               C
             </span>
-            <span className="auth-int-icon" title="Slack">
-              S
-            </span>
-            <span className="auth-int-icon" title="Notion">
-              N
-            </span>
           </div>
           <span className="auth-brand-foot-txt">
-            Gmail · Slack · Notion과 함께 사용
+            Google OAuth · Gmail · Contacts 기반
           </span>
         </div>
       </div>
@@ -263,7 +257,7 @@ export function LoginScreen({ onToast }: Props) {
             <IconCheck size={13} />
             <span>
               Gmail 읽기·보내기 권한과 Google Contacts 접근을 요청합니다.
-              메일 본문은 작성 시점에만 사용되며 저장되지 않습니다.
+              생성 초안과 히스토리는 앱에서 다시 확인할 수 있도록 저장됩니다.
             </span>
           </div>
 

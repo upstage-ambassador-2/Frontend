@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   PERSONA_TONE_OPTIONS,
   normalizePersonaTone,
@@ -26,9 +26,12 @@ import {
   type GmailMessage,
   type MeResponse,
   type PaginatedGmailMessages,
+  type DraftChatMessage,
+  type PersonaMbtiInferResult,
   type PersonaPayload,
 } from "@/lib/api";
 import { extractEmailAddress, normalizeEmailAddress } from "@/lib/email";
+import { composeHref } from "@/lib/routes";
 import { PersonaAvatar } from "./PersonaAvatar";
 import {
   IconChat,
@@ -72,10 +75,37 @@ type PersonaDraft = {
   notes: string;
   email: string;
   role: string;
+  mbti: string;
   keywords: string;
   avoid: string;
   prefer: string;
 };
+
+type PersonaValidation = {
+  field: "name" | "email" | "mbti";
+  message: string;
+};
+
+const MBTI_TYPES = [
+  "ISTJ",
+  "ISFJ",
+  "INFJ",
+  "INTJ",
+  "ISTP",
+  "ISFP",
+  "INFP",
+  "INTP",
+  "ESTP",
+  "ESFP",
+  "ENFP",
+  "ENTP",
+  "ESTJ",
+  "ESFJ",
+  "ENFJ",
+  "ENTJ",
+] as const;
+
+const MBTI_TYPE_SET = new Set<string>(MBTI_TYPES);
 
 const emptyPersona = (): PersonaDraft => ({
   name: "",
@@ -84,6 +114,7 @@ const emptyPersona = (): PersonaDraft => ({
   notes: "",
   email: "",
   role: "",
+  mbti: "",
   keywords: "",
   avoid: "",
   prefer: "",
@@ -106,6 +137,28 @@ function isValidOptionalEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function normalizeMbtiInput(value: string) {
+  return value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+}
+
+function isValidOptionalMbti(value: string) {
+  const mbti = normalizeMbtiInput(value);
+  return !mbti || MBTI_TYPE_SET.has(mbti);
+}
+
+function validatePersonaDraft(draft: PersonaDraft): PersonaValidation | null {
+  if (!draft.name.trim()) {
+    return { field: "name", message: "이름은 필수입니다." };
+  }
+  if (!isValidOptionalEmail(draft.email)) {
+    return { field: "email", message: "이메일 형식을 확인해주세요." };
+  }
+  if (!isValidOptionalMbti(draft.mbti)) {
+    return { field: "mbti", message: "MBTI는 16가지 유형 중 하나로 입력해주세요." };
+  }
+  return null;
+}
+
 function draftFromPersona(persona: Persona): PersonaDraft {
   return {
     id: persona.id,
@@ -115,6 +168,7 @@ function draftFromPersona(persona: Persona): PersonaDraft {
     notes: persona.notes || "",
     email: persona.email || "",
     role: persona.role || "",
+    mbti: normalizeMbtiInput(persona.mbti || ""),
     keywords: listText(persona.keywords),
     avoid: listText(persona.avoid),
     prefer: persona.prefer || "",
@@ -131,6 +185,7 @@ function serializeDraft(draft: PersonaDraft | null) {
     notes: draft.notes,
     email: draft.email,
     role: draft.role,
+    mbti: normalizeMbtiInput(draft.mbti),
     keywords: draft.keywords,
     avoid: draft.avoid,
     prefer: draft.prefer,
@@ -141,21 +196,53 @@ function PersonaDialog({
   draft,
   saving,
   structuring,
+  validation,
+  saveDisabled,
   onChange,
   onCancel,
   onSave,
   onStructure,
+  onToast,
+  onPatch,
 }: {
   draft: PersonaDraft;
   saving: boolean;
   structuring: boolean;
+  validation: PersonaValidation | null;
+  saveDisabled: boolean;
   onChange: (draft: PersonaDraft) => void;
   onCancel: () => void;
   onSave: () => void;
   onStructure: () => void;
+  onToast: (message: string) => void;
+  onPatch: (patch: Partial<PersonaDraft>) => void;
 }) {
   const nameRef = useRef<HTMLInputElement>(null);
+  const [mbtiHelperOpen, setMbtiHelperOpen] = useState(false);
+  const [mbtiDescription, setMbtiDescription] = useState("");
+  const [analyzingMbti, setAnalyzingMbti] = useState(false);
+  const [mbtiAnalysis, setMbtiAnalysis] =
+    useState<PersonaMbtiInferResult | null>(null);
   const title = draft.id ? "사람 수정" : "사람 추가";
+
+  const analyzeMbti = async () => {
+    const text = mbtiDescription.trim();
+    if (!text) {
+      onToast("성향 설명을 입력해주세요");
+      return;
+    }
+    setAnalyzingMbti(true);
+    try {
+      const result = await api.inferPersonaMbti(text);
+      onPatch({ mbti: normalizeMbtiInput(result.mbti) });
+      setMbtiAnalysis(result);
+      onToast(`MBTI를 ${result.mbti}로 추정했습니다`);
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "MBTI를 분석하지 못했습니다");
+    } finally {
+      setAnalyzingMbti(false);
+    }
+  };
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -185,7 +272,7 @@ function PersonaDialog({
               {title}
             </div>
             <div id="persona-dialog-desc" className="modal-sub">
-              관계, 톤, 메모와 Gmail 발송 이메일을 저장합니다.
+              관계, 톤, MBTI, 메모와 Gmail 발송 이메일을 저장합니다.
             </div>
           </div>
           <button
@@ -207,6 +294,10 @@ function PersonaDialog({
                 value={draft.name}
                 onChange={(event) => onChange({ ...draft, name: event.target.value })}
                 placeholder="예: 김지훈 팀장"
+                aria-invalid={validation?.field === "name" || undefined}
+                aria-describedby={
+                  validation?.field === "name" ? "persona-dialog-error" : undefined
+                }
               />
             </label>
             <label>
@@ -218,6 +309,10 @@ function PersonaDialog({
                 value={draft.email}
                 onChange={(event) => onChange({ ...draft, email: event.target.value })}
                 placeholder="lead@example.com"
+                aria-invalid={validation?.field === "email" || undefined}
+                aria-describedby={
+                  validation?.field === "email" ? "persona-dialog-error" : undefined
+                }
               />
             </label>
             <label>
@@ -238,6 +333,34 @@ function PersonaDialog({
                 placeholder="백엔드 챕터 리드"
               />
             </label>
+            <div className="form-field">
+              <div className="row between mbti-label-row">
+                <span id="persona-mbti-label">MBTI (선택)</span>
+                <button
+                  type="button"
+                  className="btn-secondary mbti-helper-toggle"
+                  onClick={() => setMbtiHelperOpen((open) => !open)}
+                  aria-label="잘 모르겠어요"
+                  aria-controls="persona-mbti-analysis"
+                  aria-expanded={mbtiHelperOpen}
+                >
+                  잘 모르겠어요
+                </button>
+              </div>
+              <input
+                value={draft.mbti}
+                onChange={(event) =>
+                  onChange({ ...draft, mbti: normalizeMbtiInput(event.target.value) })
+                }
+                placeholder="INTJ"
+                aria-labelledby="persona-mbti-label"
+                maxLength={4}
+                aria-invalid={validation?.field === "mbti" || undefined}
+                aria-describedby={
+                  validation?.field === "mbti" ? "persona-dialog-error" : undefined
+                }
+              />
+            </div>
             <label>
               <span>톤</span>
               <select
@@ -256,6 +379,54 @@ function PersonaDialog({
                 ))}
               </select>
             </label>
+            {mbtiHelperOpen && (
+              <div
+                id="persona-mbti-analysis"
+                className="span-2 mbti-analysis-panel"
+              >
+                <div className="mbti-analysis-head">
+                  <div>
+                    <div className="mbti-analysis-title">성향 설명으로 MBTI 추정</div>
+                    <div className="mbti-analysis-sub">
+                      공식 MBTI 선호축 기준을 백엔드에서 참고해 유형을 제안합니다.
+                    </div>
+                  </div>
+                  {mbtiAnalysis && (
+                    <span className="person-card-mbti">{mbtiAnalysis.mbti}</span>
+                  )}
+                </div>
+                <textarea
+                  value={mbtiDescription}
+                  onChange={(event) => setMbtiDescription(event.target.value)}
+                  aria-label="성향 설명"
+                  placeholder="예: 혼자 정리할 때 에너지가 나고, 큰 그림과 장기 계획을 먼저 세운 뒤 논리적으로 판단합니다."
+                  maxLength={4000}
+                />
+                <div className="mbti-analysis-foot">
+                  <a
+                    href={mbtiAnalysis?.sourceUrl || "https://www.mbtionline.com/en-US/MBTI-Types/All-about-the-Myers-Briggs-types"}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    공식 MBTI 기준
+                  </a>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => void analyzeMbti()}
+                    disabled={saving || analyzingMbti || !mbtiDescription.trim()}
+                  >
+                    <IconSparkle size={13} />
+                    {analyzingMbti ? "분석 중" : "MBTI 분석"}
+                  </button>
+                </div>
+                {mbtiAnalysis && (
+                  <div className="mbti-analysis-result">
+                    신뢰도 {mbtiAnalysis.confidence} · {mbtiAnalysis.rationale}
+                  </div>
+                )}
+              </div>
+            )}
             <label>
               <span>키워드</span>
               <input
@@ -302,13 +473,27 @@ function PersonaDialog({
               />
             </label>
           </div>
+          {validation && (
+            <div
+              id="persona-dialog-error"
+              className="state-row error-text persona-form-error"
+              role="alert"
+            >
+              {validation.message}
+            </div>
+          )}
         </div>
 
         <div className="modal-foot">
           <button type="button" className="btn-secondary" onClick={onCancel}>
             취소
           </button>
-          <button type="button" className="btn-primary" onClick={onSave} disabled={saving}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onSave}
+            disabled={saveDisabled}
+          >
             저장
           </button>
         </div>
@@ -380,6 +565,10 @@ function inboxSenderFromMessage(message: GmailMessage) {
   };
 }
 
+function needsGoogleReauth(error: string | null | undefined): boolean {
+  return !!error && /권한|재인증|다시 로그인|Google 연결/.test(error);
+}
+
 const inboxMonthNumbers: Record<string, string> = {
   jan: "01",
   feb: "02",
@@ -434,11 +623,13 @@ function initialsFrom(value: string): string {
 
 export function PeopleScreen({
   personas,
+  loadError,
   onOpen,
   onChanged,
   onToast,
 }: {
   personas: Persona[];
+  loadError?: string;
   onOpen: (id: string) => void;
   onChanged: (items: Persona[]) => void;
   onToast: (message: string) => void;
@@ -446,7 +637,13 @@ export function PeopleScreen({
   const [draft, setDraft] = useState<PersonaDraft | null>(null);
   const [initialDraft, setInitialDraft] = useState<PersonaDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [structuring, setStructuring] = useState(false);
+  const [importingContacts, setImportingContacts] = useState(false);
+  const [reauthorizingContacts, setReauthorizingContacts] = useState(false);
+  const [importRecoveryError, setImportRecoveryError] = useState<string | null>(
+    null,
+  );
   const connectedCount = useMemo(
     () => personas.filter((persona) => !!personaEmail(persona)).length,
     [personas],
@@ -455,10 +652,16 @@ export function PeopleScreen({
     () => serializeDraft(draft) !== serializeDraft(initialDraft),
     [draft, initialDraft],
   );
+  const draftValidation = useMemo(
+    () => (draft ? validatePersonaDraft(draft) : null),
+    [draft],
+  );
+  const visibleDraftValidation = saveAttempted ? draftValidation : null;
 
   const openDraft = (next: PersonaDraft) => {
     setInitialDraft(next);
     setDraft(next);
+    setSaveAttempted(false);
   };
 
   const closeDraft = useCallback(() => {
@@ -466,15 +669,15 @@ export function PeopleScreen({
     if (draftDirty && !window.confirm("저장하지 않은 변경을 버릴까요?")) return;
     setDraft(null);
     setInitialDraft(null);
+    setSaveAttempted(false);
   }, [draftDirty, saving]);
 
   const save = async () => {
-    if (!draft?.name.trim()) {
-      onToast("이름은 필수입니다");
-      return;
-    }
-    if (!isValidOptionalEmail(draft.email)) {
-      onToast("이메일 형식을 확인해주세요");
+    setSaveAttempted(true);
+    if (!draft) return;
+    const validation = validatePersonaDraft(draft);
+    if (validation) {
+      onToast(validation.message);
       return;
     }
     setSaving(true);
@@ -486,6 +689,7 @@ export function PeopleScreen({
         notes: draft.notes.trim(),
         email: draft.email.trim() || null,
         role: draft.role.trim(),
+        mbti: normalizeMbtiInput(draft.mbti),
         keywords: splitList(draft.keywords),
         avoid: splitList(draft.avoid),
         prefer: draft.prefer.trim(),
@@ -501,6 +705,7 @@ export function PeopleScreen({
       onChanged(nextPersonas);
       setDraft(null);
       setInitialDraft(null);
+      setSaveAttempted(false);
       onToast(draft.id ? "페르소나를 수정했습니다" : "페르소나를 추가했습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "저장하지 못했습니다");
@@ -549,12 +754,35 @@ export function PeopleScreen({
   };
 
   const importContacts = async () => {
+    if (importingContacts || importRecoveryError) return;
+    setImportingContacts(true);
+    setImportRecoveryError(null);
     try {
       const result = await api.importContacts();
       onChanged(result.personas);
+      setImportRecoveryError(null);
       onToast(`Contacts에서 ${result.imported}명 가져옴 · ${result.skipped}명 건너뜀`);
     } catch (error) {
-      onToast(error instanceof Error ? error.message : "Contacts를 가져오지 못했습니다");
+      const message =
+        error instanceof Error ? error.message : "Contacts를 가져오지 못했습니다";
+      if (needsGoogleReauth(message)) {
+        setImportRecoveryError(message);
+      }
+      onToast(message);
+    } finally {
+      setImportingContacts(false);
+    }
+  };
+
+  const reauthorizeContacts = async () => {
+    setReauthorizingContacts(true);
+    try {
+      window.location.href = await startGoogleLogin("/people");
+    } catch (error) {
+      setReauthorizingContacts(false);
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
     }
   };
 
@@ -562,11 +790,17 @@ export function PeopleScreen({
     <div className="page people-page">
       <PageTitle
         title="사람"
-        desc="자주 보내는 사람의 관계, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
+        desc="자주 보내는 사람의 관계, MBTI, 톤, 메모와 Gmail 발송 이메일을 함께 저장합니다."
         action={
           <div className="row gap-2 people-actions">
-            <button type="button" className="btn-secondary" onClick={importContacts}>
-              <IconMail size={13} /> Contacts에서 가져오기
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={importContacts}
+              disabled={importingContacts || !!importRecoveryError}
+            >
+              <IconMail size={13} />{" "}
+              {importingContacts ? "가져오는 중" : "Contacts에서 가져오기"}
             </button>
             <button
               type="button"
@@ -588,15 +822,44 @@ export function PeopleScreen({
         </span>
       </div>
 
+      {loadError && (
+        <div className="state-row error-text" role="alert">
+          {loadError}
+        </div>
+      )}
+
+      {importRecoveryError && (
+        <div className="state-row state-stack error-text" role="alert">
+          <div>{importRecoveryError}</div>
+          <div className="row gap-2">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void reauthorizeContacts()}
+              disabled={reauthorizingContacts}
+            >
+              <IconRefresh size={13} />
+              {reauthorizingContacts ? "재동의 중" : "Google 재동의"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {draft && (
         <PersonaDialog
           draft={draft}
           saving={saving}
           structuring={structuring}
+          validation={visibleDraftValidation}
+          saveDisabled={saving || !!visibleDraftValidation}
           onChange={setDraft}
           onCancel={closeDraft}
           onSave={() => void save()}
           onStructure={() => void structureDraft()}
+          onToast={onToast}
+          onPatch={(patch) =>
+            setDraft((current) => (current ? { ...current, ...patch } : current))
+          }
         />
       )}
 
@@ -604,6 +867,7 @@ export function PeopleScreen({
         {personas.map((persona) => {
           const email = personaEmail(persona);
           const hasEmail = !!email;
+          const profileSummary = (persona.notes || persona.prefer || "").trim();
           return (
             <div key={persona.id} className="person-card">
               <button
@@ -618,7 +882,7 @@ export function PeopleScreen({
                     <div className="person-card-meta">{persona.relation}</div>
                   </div>
                   <span className="person-card-mbti">
-                    {persona.source || "manual"}
+                    {persona.mbti || "MBTI 미입력"}
                   </span>
                 </div>
                 <div className="person-card-tags">
@@ -634,6 +898,11 @@ export function PeopleScreen({
                     </span>
                   ))}
                 </div>
+                {profileSummary && (
+                  <div className="person-card-summary">
+                    {normalizePersonaTone(persona.tone)} · {profileSummary}
+                  </div>
+                )}
                 <div className="person-card-foot">
                   <span className="person-card-last">
                     <IconHistory size={12} /> 마지막 작성 · {persona.lastUsed}
@@ -649,6 +918,14 @@ export function PeopleScreen({
                 </div>
               </button>
               <div className="card-actions">
+                <button
+                  type="button"
+                  className="btn-secondary person-card-compose"
+                  onClick={() => onOpen(persona.id)}
+                >
+                  <IconSend size={13} />
+                  메일 작성
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -667,10 +944,17 @@ export function PeopleScreen({
             </div>
           );
         })}
-        {personas.length === 0 && (
-          <div className="empty-card">
+        {personas.length === 0 && !loadError && (
+          <div className="empty-card people-empty-card">
             <IconPlus size={18} />
             <div>아직 등록된 페르소나가 없습니다.</div>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => openDraft(emptyPersona())}
+            >
+              <IconPlus size={14} /> 사람 추가
+            </button>
           </div>
         )}
       </div>
@@ -684,6 +968,7 @@ export function InboxScreen({
   pageToken,
   replyHrefForMessage,
   personaMatchForMessage,
+  onToast,
 }: {
   initialPage: PaginatedGmailMessages;
   initialError: string | null;
@@ -693,11 +978,14 @@ export function InboxScreen({
     matched: Persona | undefined;
     senderEmail: string;
   };
+  onToast: (message: string) => void;
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [navigating, startNavigation] = useTransition();
   const [tokenHistory, setTokenHistory] = useState<Record<string, string>>({});
+  const [reauthorizing, setReauthorizing] = useState(false);
+  const reauthorizingRef = useRef(false);
   const currentLimit = normalizeGmailPageSize(initialPage.limit);
   const messages = useMemo(
     () =>
@@ -756,10 +1044,28 @@ export function InboxScreen({
   };
 
   const load = () => {
+    if (reauthorizingRef.current) return;
     startRefresh(() => router.refresh());
   };
 
+  const reauthorizeGoogle = async () => {
+    if (reauthorizingRef.current) return;
+    reauthorizingRef.current = true;
+    setReauthorizing(true);
+    try {
+      const returnPath = inboxHref(currentLimit, pageToken);
+      window.location.href = await startGoogleLogin(returnPath);
+    } catch (error) {
+      reauthorizingRef.current = false;
+      setReauthorizing(false);
+      onToast(
+        error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
+      );
+    }
+  };
+
   const goNext = () => {
+    if (reauthorizingRef.current) return;
     const nextToken = initialPage.nextPageToken;
     if (!nextToken) return;
     rememberPreviousToken(nextToken, pageToken);
@@ -767,6 +1073,7 @@ export function InboxScreen({
   };
 
   const goPrevious = () => {
+    if (reauthorizingRef.current) return;
     if (!canGoPrevious) return;
     startNavigation(() =>
       router.push(inboxHref(currentLimit, previousToken || null)),
@@ -774,6 +1081,7 @@ export function InboxScreen({
   };
 
   const changePageSize = (value: string) => {
+    if (reauthorizingRef.current) return;
     const nextLimit = normalizeGmailPageSize(value);
     startNavigation(() => router.push(inboxHref(nextLimit, null)));
   };
@@ -782,6 +1090,7 @@ export function InboxScreen({
     initialPage.resultSizeEstimate == null
       ? `${messages.length}개 표시`
       : `전체 약 ${initialPage.resultSizeEstimate}개 중 ${messages.length}개 표시`;
+  const actionsDisabled = busy || reauthorizing;
 
   return (
     <div className="page inbox-page" style={{ maxWidth: 1040 }}>
@@ -795,7 +1104,7 @@ export function InboxScreen({
               <select
                 value={currentLimit}
                 onChange={(event) => changePageSize(event.target.value)}
-                disabled={busy}
+                disabled={actionsDisabled}
               >
                 {GMAIL_PAGE_SIZE_OPTIONS.map((option) => (
                   <option key={option} value={option}>
@@ -808,7 +1117,7 @@ export function InboxScreen({
               type="button"
               className="btn-secondary"
               onClick={() => void load()}
-              disabled={busy}
+              disabled={actionsDisabled}
             >
               {refreshing ? (
                 <span className="result-spinner" aria-hidden />
@@ -831,7 +1140,7 @@ export function InboxScreen({
             type="button"
             className="btn-secondary"
             onClick={goPrevious}
-            disabled={!canGoPrevious || busy}
+            disabled={!canGoPrevious || actionsDisabled}
           >
             <IconChevron size={13} style={{ transform: "rotate(180deg)" }} />
             이전
@@ -843,7 +1152,7 @@ export function InboxScreen({
             type="button"
             className="btn-secondary"
             onClick={goNext}
-            disabled={!canGoNext || busy}
+            disabled={!canGoNext || actionsDisabled}
           >
             {navigating ? (
               <span className="result-spinner" aria-hidden />
@@ -855,7 +1164,32 @@ export function InboxScreen({
       </div>
 
       <div className="card inbox-card">
-        {initialError && <div className="state-row error-text">{initialError}</div>}
+        {initialError && (
+          <div className="state-row state-stack error-text" role="alert">
+            <div>{initialError}</div>
+            <div className="row gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void load()}
+                disabled={actionsDisabled}
+              >
+                <IconRefresh size={13} />
+                다시 시도
+              </button>
+              {needsGoogleReauth(initialError) && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => void reauthorizeGoogle()}
+                  disabled={actionsDisabled}
+                >
+                  {reauthorizing ? "재동의 중" : "Google 재동의"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {!initialError && messages.length === 0 && (
           <div className="state-row">
             {pageToken
@@ -903,21 +1237,55 @@ export function InboxScreen({
 
 type HistoryDetailState = {
   item?: HistoryItem;
+  draftMessages?: DraftChatMessage[];
   isLoading: boolean;
   error?: string;
+  messagesError?: string;
 };
+
+function historyDraftHref(item: HistoryItem): string {
+  const draftQuery = `draftId=${encodeURIComponent(item.id)}`;
+  const replyId = item.replyContextId?.trim();
+  const personaId = item.personaId?.trim();
+
+  if (replyId && personaId) {
+    return `${composeHref(personaId)}/reply/${encodeURIComponent(replyId)}?${draftQuery}`;
+  }
+  if (replyId) {
+    return `/compose/reply/${encodeURIComponent(replyId)}?${draftQuery}`;
+  }
+  if (personaId) {
+    return `${composeHref(personaId)}?${draftQuery}`;
+  }
+  return `/compose?${draftQuery}`;
+}
+
+function draftMessageText(message: DraftChatMessage): string {
+  if (message.role === "user") return message.content;
+  if (message.subject && message.body) {
+    return `제목: ${message.subject}\n${message.body}`;
+  }
+  return message.subject
+    ? `제목: ${message.subject}`
+    : message.body || message.content || "초안을 수정했습니다.";
+}
 
 export function HistoryScreen({
   history,
   personas,
+  loadError,
   onDeleted,
   onToast,
 }: {
   history: HistoryItem[];
   personas: Persona[];
+  loadError?: string;
   onDeleted: (id: string) => void;
   onToast: (message: string) => void;
 }) {
+  const searchParams = useSearchParams();
+  const requestedOpenId = searchParams.get("open");
+  const requestedOpenIdRef = useRef<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterId, setFilterId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -991,12 +1359,8 @@ export function HistoryScreen({
     }
   }, [openId, visibleHistory]);
 
-  const handleHistoryToggle = useCallback(
+  const ensureHistoryDetail = useCallback(
     (item: HistoryItem) => {
-      const isClosing = openId === item.id;
-      setOpenId(isClosing ? null : item.id);
-      if (isClosing) return;
-
       const cachedDetail = detailById[item.id];
       if (cachedDetail?.item || cachedDetail?.isLoading) return;
 
@@ -1009,14 +1373,25 @@ export function HistoryScreen({
         },
       }));
 
-      void api
-        .historyDetail(item.id)
-        .then((detail) => {
+      void Promise.allSettled([
+        api.historyDetail(item.id),
+        api.historyDraftMessages(item.id),
+      ])
+        .then(([detailResult, messagesResult]) => {
+          if (detailResult.status === "rejected") {
+            throw detailResult.reason;
+          }
           setDetailById((current) => ({
             ...current,
             [item.id]: {
-              item: detail,
+              item: detailResult.value,
+              draftMessages:
+                messagesResult.status === "fulfilled" ? messagesResult.value : [],
               isLoading: false,
+              messagesError:
+                messagesResult.status === "rejected"
+                  ? "수정 요청 기록을 불러오지 못했습니다."
+                  : undefined,
             },
           }));
         })
@@ -1034,8 +1409,47 @@ export function HistoryScreen({
           }));
         });
     },
-    [detailById, openId],
+    [detailById],
   );
+
+  const openHistoryItem = useCallback(
+    (item: HistoryItem) => {
+      setOpenId(item.id);
+      ensureHistoryDetail(item);
+    },
+    [ensureHistoryDetail],
+  );
+
+  const handleHistoryToggle = useCallback(
+    (item: HistoryItem) => {
+      const isClosing = openId === item.id;
+      if (isClosing) {
+        setOpenId(null);
+        return;
+      }
+      openHistoryItem(item);
+    },
+    [openHistoryItem, openId],
+  );
+
+  useEffect(() => {
+    if (!requestedOpenId) return;
+    if (requestedOpenIdRef.current === requestedOpenId) return;
+    const requestedItem = history.find((item) => item.id === requestedOpenId);
+    if (!requestedItem) return;
+    requestedOpenIdRef.current = requestedOpenId;
+    openHistoryItem(requestedItem);
+  }, [history, openHistoryItem, requestedOpenId]);
+
+  useEffect(() => {
+    if (!requestedOpenId || openId !== requestedOpenId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`history-detail-${requestedOpenId}`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openId, requestedOpenId]);
 
   const handleHistoryDelete = useCallback(
     async (item: HistoryItem) => {
@@ -1097,6 +1511,11 @@ export function HistoryScreen({
       />
 
       <div className="card history-card">
+        {loadError && (
+          <div className="state-row error-text" role="alert">
+            {loadError}
+          </div>
+        )}
         <div className="history-row is-head">
           <span></span>
           <span>제목 / 미리보기</span>
@@ -1115,9 +1534,11 @@ export function HistoryScreen({
           const detailItem = detailState?.item || item;
           const detailTarget = targetFor(detailItem);
           const detailSubject = detailItem.subject || detailItem.subj || subject;
+          const detailStatus = detailItem.status || status;
           const detailPreview =
             detailItem.prev || detailItem.body || detailItem.brief || preview;
           const detailBody = detailItem.body || detailPreview;
+          const draftMessages = detailState?.draftMessages ?? [];
           return (
             <div key={item.id}>
               <button
@@ -1163,6 +1584,15 @@ export function HistoryScreen({
                 >
                   <div className="history-detail-head">
                     <div className="history-detail-title">{detailSubject}</div>
+                    {detailStatus !== "sent" && (
+                      <Link
+                        href={historyDraftHref(detailItem)}
+                        className="btn-primary history-resume-link"
+                      >
+                        <IconSparkle size={13} />
+                        이어쓰기
+                      </Link>
+                    )}
                     <button
                       type="button"
                       className="btn-secondary"
@@ -1190,14 +1620,47 @@ export function HistoryScreen({
                   ) : detailState?.error ? (
                     <p className="muted">상세를 불러오지 못했습니다.</p>
                   ) : (
-                    <p>{detailBody}</p>
+                    <>
+                      <div className="history-detail-body">{detailBody}</div>
+                      <div className="history-chat-history">
+                        <div className="history-chat-head">
+                          <span>수정 요청 기록</span>
+                          <span className="tag blue">
+                            {draftMessages.length}개
+                          </span>
+                        </div>
+                        {detailState?.messagesError ? (
+                          <div className="history-chat-empty">
+                            {detailState.messagesError}
+                          </div>
+                        ) : draftMessages.length === 0 ? (
+                          <div className="history-chat-empty">
+                            저장된 수정 요청 기록이 없습니다.
+                          </div>
+                        ) : (
+                          <div className="history-chat-log">
+                            {draftMessages.map((message) => (
+                              <div
+                                key={message.id}
+                                className={`history-chat-message is-${message.role}`}
+                              >
+                                <span className="history-chat-role">
+                                  {message.role === "user" ? "나" : "Mello"}
+                                </span>
+                                <span>{draftMessageText(message)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
             </div>
           );
         })}
-        {visibleHistory.length === 0 && (
+        {visibleHistory.length === 0 && !loadError && (
           <div className="state-row">
             {history.length === 0
               ? "아직 작성한 메일이 없습니다."
@@ -1234,45 +1697,132 @@ function FormatSlot({
   );
 }
 
+const FORMAT_DIRTY_KEYS: Array<keyof MailFormat> = [
+  "signature",
+  "greeting",
+  "closing",
+  "structure",
+  "bulletStyle",
+  "language",
+];
+
+function validateFormatDraft(draft: MailFormat): string | null {
+  if (!draft.greeting.trim()) return "인사말은 비워둘 수 없습니다.";
+  if (!draft.structure.trim()) return "본문 구조는 비워둘 수 없습니다.";
+  if (!draft.language.trim()) return "기본 언어는 비워둘 수 없습니다.";
+  return null;
+}
+
 export function FormatScreen({
   format,
+  loadError,
   onChanged,
   onToast,
 }: {
   format: MailFormat;
+  loadError?: string;
   onChanged: (format: MailFormat) => void;
   onToast: (message: string) => void;
 }) {
+  const router = useRouter();
   const [draft, setDraft] = useState(format);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const formatDirty = useMemo(
+    () =>
+      FORMAT_DIRTY_KEYS.some(
+        (key) => String(draft[key] || "") !== String(format[key] || ""),
+      ),
+    [draft, format],
+  );
+  const formatValidationError = editing ? validateFormatDraft(draft) : null;
 
   useEffect(() => {
-    setDraft(format);
-  }, [format]);
+    if (!editing) setDraft(format);
+  }, [editing, format]);
+
+  useEffect(() => {
+    if (!editing || !formatDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [editing, formatDirty]);
+
+  useEffect(() => {
+    if (!editing || !formatDirty) return;
+    const onClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      if (!(event.target instanceof Element)) return;
+      const anchor = event.target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      const nextUrl = new URL(anchor.href);
+      if (nextUrl.origin !== window.location.origin) return;
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+      if (currentPath === nextPath) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!window.confirm("저장하지 않은 메일 형식 변경을 버릴까요?")) return;
+      setEditing(false);
+      setDraft(format);
+      router.push(nextPath);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [editing, format, formatDirty, router]);
 
   const cancel = () => {
+    if (saving) return;
+    if (formatDirty && !window.confirm("저장하지 않은 변경을 버릴까요?")) return;
     setDraft(format);
     setEditing(false);
   };
 
   const save = async () => {
+    if (!formatDirty || saving) return;
+    if (formatValidationError) {
+      onToast(formatValidationError);
+      return;
+    }
+    setSaving(true);
     try {
       const saved = await api.updateFormat(draft);
+      setDraft(saved);
       onChanged(saved);
       setEditing(false);
       onToast("메일 형식을 저장했습니다");
     } catch (error) {
       onToast(error instanceof Error ? error.message : "메일 형식을 저장하지 못했습니다");
+    } finally {
+      setSaving(false);
     }
   };
 
   const renderEditActions = (placement: "top" | "bottom") => (
     <div className={`format-actions format-actions-${placement}`}>
-      <button type="button" className="btn-secondary" onClick={cancel}>
+      <button type="button" className="btn-secondary" onClick={cancel} disabled={saving}>
         취소
       </button>
-      <button type="button" className="btn-primary" onClick={save}>
-        저장
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={save}
+        disabled={saving || !formatDirty || !!formatValidationError}
+      >
+        {saving ? "저장 중" : "저장"}
       </button>
     </div>
   );
@@ -1292,6 +1842,12 @@ export function FormatScreen({
           )
         }
       />
+
+      {loadError && (
+        <div className="state-row error-text" role="alert">
+          {loadError}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-h">
@@ -1331,6 +1887,11 @@ export function FormatScreen({
                   />
                 </label>
               </div>
+              {formatValidationError && (
+                <div className="state-row error-text" role="alert">
+                  {formatValidationError}
+                </div>
+              )}
               {renderEditActions("bottom")}
             </>
           ) : (
@@ -1411,6 +1972,7 @@ function Integration({
   statusTone,
   actionLabel,
   onClick,
+  disabled = false,
 }: {
   title: string;
   desc: string;
@@ -1418,6 +1980,7 @@ function Integration({
   statusTone: "green" | "amber" | "gray";
   actionLabel: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="settings-integration">
@@ -1429,10 +1992,57 @@ function Integration({
         <div className="small muted">{desc}</div>
       </div>
       <span className={`tag ${statusTone}`}>{statusLabel}</span>
-      <button type="button" className="btn-secondary" onClick={onClick}>
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={onClick}
+        disabled={disabled}
+      >
         {actionLabel}
       </button>
     </div>
+  );
+}
+
+type NotificationPreferenceKey = "personaRecommendation" | "monthlyReport";
+
+type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  personaRecommendation: true,
+  monthlyReport: false,
+};
+
+const NOTIFICATION_PREFERENCE_STORAGE_KEY = "mello:settings:notifications";
+
+function notificationTag(enabled: boolean) {
+  return (
+    <span className={`tag ${enabled ? "green" : "gray"}`}>
+      {enabled ? "켜짐" : "꺼짐"}
+    </span>
+  );
+}
+
+function NotificationToggle({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={"settings-toggle" + (checked ? " is-on" : "")}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onToggle}
+    >
+      <span className="settings-toggle-thumb" />
+    </button>
   );
 }
 
@@ -1445,27 +2055,89 @@ export function SettingsScreen({
   onLogout: () => void;
   onToast: (message: string) => void;
 }) {
+  const [busyIntegration, setBusyIntegration] = useState<string | null>(null);
+  const [notificationPrefs, setNotificationPrefs] =
+    useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const busyIntegrationRef = useRef<string | null>(null);
+  const userName = me?.user.name || "로그인 사용자";
+  const userEmail = me?.user.email || "mello@example.com";
+  const notificationPreferenceStorageKey = useMemo(() => {
+    const normalizedEmail = normalizeEmailAddress(me?.user.email);
+    return normalizedEmail
+      ? `${NOTIFICATION_PREFERENCE_STORAGE_KEY}:${normalizedEmail}`
+      : NOTIFICATION_PREFERENCE_STORAGE_KEY;
+  }, [me?.user.email]);
+
+  useEffect(() => {
+    let next = DEFAULT_NOTIFICATION_PREFERENCES;
+    try {
+      const saved = window.localStorage.getItem(
+        notificationPreferenceStorageKey,
+      );
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<NotificationPreferences>;
+        next = {
+          ...DEFAULT_NOTIFICATION_PREFERENCES,
+          personaRecommendation:
+            typeof parsed.personaRecommendation === "boolean"
+              ? parsed.personaRecommendation
+              : DEFAULT_NOTIFICATION_PREFERENCES.personaRecommendation,
+          monthlyReport:
+            typeof parsed.monthlyReport === "boolean"
+              ? parsed.monthlyReport
+              : DEFAULT_NOTIFICATION_PREFERENCES.monthlyReport,
+        };
+      }
+    } catch {
+      next = DEFAULT_NOTIFICATION_PREFERENCES;
+    }
+    setNotificationPrefs(next);
+  }, [notificationPreferenceStorageKey]);
+
+  const setIntegrationBusy = (value: string | null) => {
+    busyIntegrationRef.current = value;
+    setBusyIntegration(value);
+  };
+
   const planned = async (provider: string) => {
+    if (busyIntegrationRef.current) return;
+    setIntegrationBusy(provider);
     try {
       const result = await api.toggleIntegration(provider);
       onToast(result.message);
     } catch (error) {
       onToast(error instanceof Error ? error.message : "통합 상태를 처리하지 못했습니다");
+    } finally {
+      setIntegrationBusy(null);
     }
   };
   const reauthorizeGoogle = async () => {
+    if (busyIntegrationRef.current) return;
+    setIntegrationBusy("google");
     try {
       window.location.href = await startGoogleLogin("/settings");
     } catch (error) {
+      setIntegrationBusy(null);
       onToast(
         error instanceof Error ? error.message : "Google 재동의를 시작하지 못했습니다.",
       );
     }
   };
-  const userName = me?.user.name || "로그인 사용자";
-  const userEmail = me?.user.email || "mello@example.com";
   const gmailConnected = !!me?.integrations.gmail;
   const contactsConnected = !!me?.integrations.contacts;
+  const toggleNotification = (key: NotificationPreferenceKey, label: string) => {
+    const next = { ...notificationPrefs, [key]: !notificationPrefs[key] };
+    setNotificationPrefs(next);
+    try {
+      window.localStorage.setItem(
+        notificationPreferenceStorageKey,
+        JSON.stringify(next),
+      );
+    } catch {
+      // Local notification preferences are a client-side convenience only.
+    }
+    onToast(`${label}을 ${next[key] ? "켰습니다" : "껐습니다"}`);
+  };
 
   return (
     <div className="page settings-page">
@@ -1515,34 +2187,50 @@ export function SettingsScreen({
             desc="받은편지함 조회 · 사용자 본인 명의 발송"
             statusLabel={gmailConnected ? "연결됨" : "권한 필요"}
             statusTone={gmailConnected ? "green" : "amber"}
-            actionLabel={gmailConnected ? "관리" : "재동의"}
+            actionLabel={
+              busyIntegration === "google" && !gmailConnected
+                ? "재동의 중"
+                : gmailConnected
+                  ? "관리"
+                  : "재동의"
+            }
             onClick={gmailConnected ? () => void planned("gmail") : reauthorizeGoogle}
+            disabled={!!busyIntegration}
           />
           <Integration
             title="Google Contacts"
             desc="연락처를 페르소나 후보로 가져오기"
             statusLabel={contactsConnected ? "연결됨" : "권한 필요"}
             statusTone={contactsConnected ? "green" : "amber"}
-            actionLabel={contactsConnected ? "관리" : "재동의"}
+            actionLabel={
+              busyIntegration === "google" && !contactsConnected
+                ? "재동의 중"
+                : contactsConnected
+                  ? "관리"
+                  : "재동의"
+            }
             onClick={
               contactsConnected ? () => void planned("contacts") : reauthorizeGoogle
             }
+            disabled={!!busyIntegration}
           />
           <Integration
             title="Slack"
-            desc="DM 톤 맞춰 전송"
+            desc="지원 예정 통합"
             statusLabel="지원 예정"
             statusTone="gray"
-            actionLabel="연결"
+            actionLabel={busyIntegration === "slack" ? "확인 중" : "안내"}
             onClick={() => void planned("slack")}
+            disabled={!!busyIntegration}
           />
           <Integration
             title="Notion"
-            desc="작성 결과를 페이지로 저장"
+            desc="지원 예정 통합"
             statusLabel="지원 예정"
             statusTone="gray"
-            actionLabel="연결"
+            actionLabel={busyIntegration === "notion" ? "확인 중" : "안내"}
             onClick={() => void planned("notion")}
+            disabled={!!busyIntegration}
           />
         </div>
       </div>
@@ -1552,8 +2240,37 @@ export function SettingsScreen({
           <div className="card-h-title">알림</div>
         </div>
         <div className="card-b">
-          <Row k="새 페르소나 추천 알림" v={<span className="tag green">켜짐</span>} />
-          <Row k="월간 사용 리포트" v={<span className="tag gray">꺼짐</span>} />
+          <Row
+            k="새 페르소나 추천 알림"
+            v={notificationTag(notificationPrefs.personaRecommendation)}
+            sub="새 연락처나 답장 발신자 기준으로 추천이 생기면 알려줍니다."
+            action={
+              <NotificationToggle
+                label="새 페르소나 추천 알림"
+                checked={notificationPrefs.personaRecommendation}
+                onToggle={() =>
+                  toggleNotification(
+                    "personaRecommendation",
+                    "새 페르소나 추천 알림",
+                  )
+                }
+              />
+            }
+          />
+          <Row
+            k="월간 사용 리포트"
+            v={notificationTag(notificationPrefs.monthlyReport)}
+            sub="이번 달 생성/발송 요약을 월간 리포트로 받습니다."
+            action={
+              <NotificationToggle
+                label="월간 사용 리포트"
+                checked={notificationPrefs.monthlyReport}
+                onToggle={() =>
+                  toggleNotification("monthlyReport", "월간 사용 리포트")
+                }
+              />
+            }
+          />
         </div>
       </div>
     </div>

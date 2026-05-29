@@ -4,6 +4,7 @@ import {
   ReplyComposeRoute,
 } from "@/components/routes/ReplyComposeRoute";
 import {
+  getServerDraftSession,
   getServerGmailMessage,
   getServerInitial,
 } from "@/lib/server-api";
@@ -12,8 +13,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ReplyComposePage({
   params,
+  searchParams,
 }: {
   params: { personaId: string; messageId: string };
+  searchParams?: { draftId?: string };
 }) {
   const initial = await getServerInitial();
   if (initial.auth === "out") {
@@ -48,10 +51,12 @@ export default async function ReplyComposePage({
     );
   }
 
+  const draftSession = await getServerDraftSession(searchParams?.draftId);
   return (
     <ReplyComposeRoute
       initialReplyContext={message.data.replyContext}
       messageId={params.messageId}
+      initialDraftSession={draftSession.data}
     />
   );
 }

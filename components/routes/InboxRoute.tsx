@@ -13,7 +13,7 @@ type Props = {
 };
 
 export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
-  const { personas, selectedId } = useMello();
+  const { personas, showToast } = useMello();
 
   const personaMatchForMessage = (message: GmailMessage) => {
     const senderEmail = normalizeEmailAddress(
@@ -34,11 +34,10 @@ export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
 
   const replyHrefForMessage = (message: GmailMessage) => {
     const { matched } = personaMatchForMessage(message);
-    const personaId = matched?.id || selectedId || personas[0]?.id;
-    if (!personaId) {
+    if (!matched?.id) {
       return `/compose/reply/${encodeURIComponent(message.id)}`;
     }
-    return `${composeHref(personaId)}/reply/${encodeURIComponent(message.id)}`;
+    return `${composeHref(matched.id)}/reply/${encodeURIComponent(message.id)}`;
   };
 
   return (
@@ -48,6 +47,7 @@ export function InboxRoute({ initialPage, initialError, pageToken }: Props) {
       pageToken={pageToken}
       replyHrefForMessage={replyHrefForMessage}
       personaMatchForMessage={personaMatchForMessage}
+      onToast={showToast}
     />
   );
 }

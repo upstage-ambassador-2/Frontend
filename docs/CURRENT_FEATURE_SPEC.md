@@ -47,24 +47,41 @@ Gmail 받은편지함, Gmail 발송, Contacts import, Settings 통합 상태
 - Gmail과 Google Contacts는 Google OAuth scope 기반 연결 상태로 표시한다.
 - Slack과 Notion은 UI에 표시하지만 `지원 예정` no-op 상태로 둔다.
 - Settings의 통합 버튼은 실제 연결/해제가 아니라 안내 API를 호출하고 toast를 표시한다.
+- Settings의 통합 버튼은 안내 요청 또는 Google 재동의 시작 중 중복 클릭을 막고 진행 중 문구를 표시한다.
+- Sidebar footer의 계정 메뉴는 더보기 버튼으로 열고, 계정 설정 이동과 로그아웃 액션을 제공한다.
+- 계정 메뉴는 바깥 클릭 또는 `Escape`로 닫히며 로그아웃은 기존 `POST /auth/logout` 흐름을 사용한다.
+- 로그인 후 사이드바의 주요 메뉴는 각 항목 아래에 `새 메일 초안`, `Gmail 답장 시작`, `수신자 성향 관리`, `초안·발송 기록`, `인사말·서명`, `계정·연동` 설명을 표시한다.
+- 메뉴 설명은 사용자가 현재 화면 이동의 목적을 이해하도록 돕고, 좁은 태블릿/모바일 상단 네비게이션에서는 공간에 맞게 접힌다.
+- Settings의 알림 카드는 새 페르소나 추천 알림과 월간 사용 리포트 선호도를 switch 형태로 제공한다.
+- 알림 선호도는 토글 즉시 `켜짐`/`꺼짐` tag, switch 상태, toast 피드백에 반영된다.
+- 알림 선호도는 사용자 이메일별 브라우저 `localStorage`에 저장되어 같은 브라우저 세션의 재방문/새로고침 후에도 유지된다.
+- 알림 선호도는 현재 클라이언트 편의 설정이며, 실제 서버 알림 발송이나 quota enforcement와 연결하지 않는다.
 
 ### 기능 효과
-사용자가 현재 계정과 사용 가능한 외부 연동 범위를 확인할 수 있다.
+사용자가 현재 계정, 사용 가능한 외부 연동 범위, 로컬 알림 선호도를 확인하고 즉시 조정할 수 있다.
 
 ### 연계 기능
-Google OAuth, Settings, Gmail, Contacts
+Google OAuth, Settings, Gmail, Contacts, Toast
 
 ## 3. People/Persona 관리
 
 ### 기능 명
-페르소나 수동 CRUD 및 메모 구조화
+페르소나 수동 CRUD, MBTI 추정 및 메모 구조화
 
 ### 기능 정의
-자주 메일을 보내는 사람의 이름, 이메일, 관계, 톤, 키워드, 금지 표현, 선호 표현, 메모를 저장한다.
+자주 메일을 보내는 사람의 이름, 이메일, 관계, 역할, MBTI, 톤, 키워드, 금지 표현, 선호 표현, 메모를 저장한다.
 
 ### 기능 상세 동작
 - People 화면은 `GET /personas` 결과를 목록으로 렌더링한다.
-- 사람 추가 또는 수정 시 이름, 이메일, 관계, 역할, 톤, 키워드, 금지 표현, 선호 표현, 메모를 입력한다.
+- 앱 shell의 초기 persona 조회가 실패하면 빈 목록으로 오인하지 않도록 People 화면에 오류 상태를 표시한다.
+- persona 카드는 이름, 관계, MBTI 입력 상태, 이메일 연결 상태, 톤/키워드, 톤과 메모 또는 선호 구조 요약, 마지막 작성 시점, 발송 이메일을 표시한다.
+- 사람 추가 또는 수정 시 이름, 이메일, 관계, 역할, MBTI, 톤, 키워드, 금지 표현, 선호 표현, 메모를 입력한다.
+- MBTI를 아는 사용자는 16가지 유형 코드를 직접 입력할 수 있다.
+- MBTI를 모르면 `잘 모르겠어요`를 열고 수신자의 성향 설명을 입력한 뒤 `MBTI 분석`을 누른다.
+- `MBTI 분석`은 브라우저에서 공식 사이트나 LLM을 직접 호출하지 않고 same-origin `POST /personas/infer-mbti` API만 호출한다.
+- 분석 결과는 MBTI 입력란에 자동 반영되고, 신뢰도/근거/공식 MBTI 기준 링크를 패널 안에 표시한다.
+- 사람 추가 또는 수정 저장 시 이름이 비어 있거나 이메일 형식 또는 MBTI 유형이 올바르지 않으면 저장을 막고 폼 안의 inline 오류와 toast를 함께 표시한다.
+- persona가 0개일 때는 empty state 안에서 사람 추가 CTA를 제공한다.
 - 메모 입력 후 `AI 정리`를 누르면 `POST /personas/structure`가 자유 텍스트를 톤, 키워드, 금지 표현, 선호 표현, 요약 메모로 구조화한다.
 - 구조화 결과는 저장 전 폼 필드에 반영되며, 사용자가 다시 수정한 뒤 저장한다.
 - 저장 시 `POST /personas` 또는 `PATCH /personas/{id}`를 호출한다.
@@ -90,6 +107,9 @@ Google Contacts 권한을 사용해 연락처를 persona 후보로 가져온다.
 ### 기능 상세 동작
 - People 화면에서 `Contacts에서 가져오기` 버튼을 누른다.
 - 프론트엔드는 `POST /personas/import-contacts`를 호출한다.
+- 연락처 import 요청 중에는 버튼을 비활성화해 같은 요청이 중복 실행되지 않게 한다.
+- Google Contacts 권한 또는 재인증이 필요한 import 실패는 People 화면 안에 Google 재동의 버튼을 표시하고, 완료 후 `/people`로 돌아오게 한다.
+- 재동의 안내가 표시된 동안 import 버튼은 비활성화되어 같은 실패 요청을 반복하지 않는다.
 - 백엔드는 Google People API에서 연락처를 가져온다.
 - 기존 persona와 이메일이 같거나 공백 정규화 후 이름이 같은 항목은 `skipped`로 처리한다.
 - 같은 import batch 안에서 먼저 생성된 이메일/이름과 중복되는 항목도 추가하지 않는다.
@@ -112,9 +132,14 @@ Google OAuth `contacts.readonly`, People, Compose
 
 ### 기능 상세 동작
 - Format 화면은 `GET /format`으로 현재 형식을 조회한다.
+- 앱 shell의 초기 format 조회가 실패하면 빈 기본값으로 오인하지 않도록 Format 화면에 오류 상태를 표시한다.
 - 편집 모드에서 필드를 수정하고 저장하면 `PUT /format`을 호출한다.
+- 저장하지 않은 변경이 있는 상태에서 취소하거나 앱 내부 링크로 이동하려 하면 변경 폐기 확인을 먼저 받는다.
+- 저장하지 않은 변경이 있는 상태에서 새로고침 또는 탭 닫기를 시도하면 브라우저 기본 이탈 확인을 표시한다.
+- 변경 내용이 없거나 저장 중일 때는 저장 버튼을 비활성화한다.
+- 인사말, 본문 구조, 기본 언어가 공백이면 inline 오류를 표시하고 저장 버튼을 비활성화한다.
 - 백엔드는 사용자별 1:1 MailFormat을 생성 또는 갱신한다.
-- AI 생성 시 백엔드가 MailFormat을 시스템 프롬프트에 삽입한다.
+- AI 생성 시 백엔드가 MailFormat을 생성 컨텍스트에 반영한다.
 
 ### 기능 효과
 AI 초안이 사용자의 평소 이메일 스타일과 서명을 따른다.
@@ -134,13 +159,15 @@ Solar 기반 SSE 메일 초안 생성
 - Compose 화면에서 brief를 입력하거나 reply context가 있는 상태에서 `Mello에게 작성 요청`을 누른다.
 - 프론트엔드는 `POST /ai/generate`를 호출하고 SSE stream을 읽는다.
 - 백엔드는 persona, reply context, mail format을 조회하고 Solar 프롬프트를 구성한다.
-- Solar 프롬프트에는 persona의 피해야 할 표현을 그대로 쓰지 말 것과, 서명이 있으면 본문 끝에 포함할 것을 명시한다.
+- Solar 프롬프트에는 출력 계약(Subject/Body), 사실 생성 금지, 길이별 본문 구성, 답장 작성 규칙, persona 선호/금지 표현, 서명 포함 규칙을 명시한다.
 - 생성 중 `delta` event로 텍스트 청크를 보낸다.
 - 완료 시 `done` event로 `subject`, `body`, `history`를 반환한다.
 - 백엔드는 완료 직후 최종 draft를 검증해 mail format signature가 빠져 있으면 저장 전 본문 끝에 보강한다.
 - 백엔드는 완료 직후 최종 draft의 subject/body에 persona 금지 표현이 포함되면 `error` event를 반환하고 history를 생성하지 않는다.
 - 생성 완료 후 history는 `draft` 상태로 저장된다.
 - `다시 생성`은 같은 입력으로 생성 API를 재호출한다.
+- 사용자가 생성 결과 제목/본문을 수동 편집한 뒤 다시 생성하려 하면 덮어쓰기 확인을 먼저 받는다.
+- 작성 결과 편집 input/textarea 안에서는 `⌘/Ctrl + Enter`가 재생성을 트리거하지 않아 수동 편집본이 실수로 덮이지 않는다.
 - 새 stream의 첫 `delta`가 오면 이전 표시 결과를 새 결과로 교체한다.
 - 생성 실패 시 에러 toast를 표시하고, 이전 draft가 있으면 보존하며, 실패한 요청의 history는 생성하지 않는다.
 
@@ -160,9 +187,14 @@ Gmail에서 최근 받은 메일을 조회하고, 선택한 메일의 원문과 
 
 ### 기능 상세 동작
 - Inbox 화면은 server component에서 `GET /gmail/messages`를 호출해 메일 목록을 렌더링한다.
+- Gmail 권한, 재인증, 네트워크 오류로 목록 조회가 실패하면 오류 상태와 다시 시도 버튼을 표시한다.
+- Gmail 권한 또는 재인증이 필요한 오류에는 Google 재동의 버튼을 표시하고, 완료 후 기존 inbox cursor URL로 돌아오게 한다.
+- Google 재동의 시작 중에는 버튼 문구를 `재동의 중`으로 바꾸고 받은편지함 새로고침, 페이지 크기 변경, 이전/다음 페이지 이동을 잠가 중복 리다이렉트와 경합 이동을 막는다.
 - 페이지 크기와 Gmail `pageToken` 기반 cursor pagination을 지원한다.
 - 메일 항목 클릭 시 `/compose/{personaId}/reply/{messageId}` 또는 `/compose/reply/{messageId}`로 이동한다.
+- sender email이 기존 persona와 매칭되지 않으면 임의의 현재 선택 persona로 진입하지 않고 `/compose/reply/{messageId}`에서 신규 persona 연결을 진행한다.
 - 상세 route는 server side에서 `GET /gmail/messages/{messageId}`를 호출한다.
+- 상세 조회 오류 화면에서도 Google 재동의가 필요한 경우 `재동의 중` 상태를 표시하고 다시 시도/받은편지함 이동 버튼을 잠시 비활성화한다.
 - 상세 응답의 raw body와 reply context를 Compose에 주입한다.
 - sender email이 기존 persona와 매칭되면 해당 persona를 사용한다.
 - 매칭 persona가 없고 본인 이메일이 아니면 클라이언트가 신규 persona 생성을 보조하고 생성된 persona의 reply route로 이동한다.
@@ -190,7 +222,12 @@ Gmail API 직접 발송
 - 백엔드는 발송 직전 mail format signature가 body에 없으면 Gmail API 호출과 history 갱신에 사용할 최종 body에 서명을 보강한다.
 - 백엔드는 Gmail API send를 호출한다.
 - 성공 시 history 상태를 `sent`로 갱신하고 Gmail message id와 sent_at을 저장한다.
+- 프론트엔드는 `sent` 상태의 생성 결과에 대해 보내기 버튼을 비활성화하고 재발송을 막는다.
 - 실패 시 프론트엔드 toast로 에러를 표시한다.
+- Gmail 권한 또는 재인증이 필요한 발송 실패는 초안을 보존하고 작성 화면 안에 Google 재동의 버튼을 표시한다.
+- 재동의 안내가 표시된 동안 보내기 버튼은 비활성화되어 같은 실패 요청을 반복하지 않는다.
+- 발송 실패 복구용 Google 재동의 버튼은 클릭 즉시 `재동의 중`으로 전환되고 중복 클릭을 무시한다.
+- Google 재동의는 완료 후 사용자가 머물던 작성 URL로 돌아오게 하며, 왕복 전 작성 중이던 subject/body를 세션 단위로 복원한다.
 
 ### 기능 효과
 사용자가 앱 안에서 초안 생성부터 발송까지 완료할 수 있다.
@@ -216,9 +253,11 @@ AI가 생성한 초안과 Gmail 발송 상태를 사용자별로 저장하고, H
 - `/gmail/send` 성공 시 연결된 HistoryItem을 `sent` 상태로 갱신한다.
 - `/gmail/send`는 발송 payload의 subject/body를 연결된 HistoryItem에 최종 반영한 뒤 `sent` 상태로 갱신한다.
 - 앱 shell의 서버 초기 데이터 로딩은 `GET /history` 결과를 받아 History 화면의 목록 초기 상태로 전달한다.
+- 앱 shell의 초기 history 조회가 실패하면 빈 history가 아니라 오류 상태를 표시한다.
 - 목록 row는 subject, preview, 대상 이름/이메일, `draft` 또는 `sent` 상태, tone/length, 작성 시각을 표시한다.
 - 화면 내 client filter로 전체, persona별, reply 기록별 필터를 제공한다.
 - 검색어 입력 시 subject, preview/body, brief, reply subject, 대상 이름/이메일, 상태, 작성 시각을 클라이언트에서 필터링한다.
+- Sidebar 검색의 history 결과는 `/history?open=<historyId>`로 이동해 해당 detail panel을 자동으로 연다.
 - row 클릭 시 프론트엔드는 `GET /history/{id}`를 호출해 상세 데이터를 조회한다.
 - 상세 조회 중에는 기존 detail panel 안에서 loading 문구를 표시한다.
 - 상세 조회 성공 시 API 응답의 subject, body, 대상 정보를 detail panel에 표시한다.
@@ -252,7 +291,28 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - 서버 검색 파라미터 기반 `/history?q=` 구현은 현재 범위에서 제외하고 클라이언트 필터로 유지한다.
 - History 페이지네이션과 대량 데이터 최적화는 후순위로 둔다.
 
-## 10. Local Mock E2E 지원
+## 10. 공통 Toast 피드백
+
+### 기능 명
+전역 Toast 큐 및 자동 dismiss
+
+### 기능 정의
+로그인 화면과 앱 shell에서 성공, 실패, 안내 메시지를 일관된 toast로 표시한다.
+
+### 기능 상세 동작
+- LoginPage와 MelloShell은 같은 toast enqueue 함수를 사용한다.
+- toast는 최대 3개까지만 화면에 유지해 짧은 시간에 여러 액션이 발생해도 하단 UI가 과도하게 쌓이지 않게 한다.
+- 새 toast가 추가될 때 최대 개수를 초과하면 가장 오래된 toast를 먼저 제거한다.
+- 각 toast는 1.8초 뒤 자동으로 dismiss된다.
+- toast stack은 `aria-live="polite"`와 `role="status"`를 사용해 상태 메시지를 보조 기술에 전달한다.
+
+### 기능 효과
+사용자가 빠르게 연속 작업을 해도 피드백을 읽을 수 있고, toast가 주요 작업 화면을 가리지 않는다.
+
+### 연계 기능
+Login, Compose, People, Format, History, Settings
+
+## 11. Local Mock E2E 지원
 
 ### 기능 명
 프론트엔드 mock API 기반 E2E 검증
@@ -271,7 +331,8 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 - mock Gmail send는 payload에 `replyContextId`가 없으면 연결된 history의 reply context를 사용해 답장 대상과 thread header를 보완한다.
 - mock Gmail send는 백엔드와 동일하게 발송 직전 서명 보강과 persona 금지 표현 차단 계약을 재현한다.
 - mock persona 삭제는 백엔드와 동일하게 연결된 history의 persona relation을 해제하고 대상 스냅샷을 유지한다.
-- mock `GET /history`는 백엔드와 동일하게 `personaId`, `personaEmail`, `email` 필터를 지원하며 스냅샷 이메일도 매칭한다.
+- mock `GET /history`는 백엔드와 동일하게 `personaId`, `personaEmail`, `email` 필터를 지원하며 현재 연결된 persona 이메일과 스냅샷 이메일을 함께 매칭한다.
+- mock `GET /history?personaId=`는 존재하지 않는 persona id에 대해 백엔드와 동일하게 404를 반환한다.
 - Playwright CLI runbook으로 로그인, compose, inbox reply, people import, send, history, format, settings flow를 수동 검증할 수 있다.
 - mock server는 `GET /health`와 `GET /health/ready`를 제공해 프론트 rewrite와 운영 readiness 계약을 로컬에서 확인할 수 있다.
 
@@ -281,7 +342,7 @@ Compose, Gmail send, Persona, ReplyContext, mock API
 ### 연계 기능
 Frontend routes, mock data, manual QA
 
-## 11. 운영 Health/Readiness
+## 12. 운영 Health/Readiness
 
 ### 기능 명
 운영 Health/Readiness 라우팅

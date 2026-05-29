@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ComposerScreen } from "@/components/ComposerScreen";
 import { useMello } from "@/components/MelloShell";
-import { api, startGoogleLogin, type ReplyContext } from "@/lib/api";
+import {
+  api,
+  startGoogleLogin,
+  type DraftSession,
+  type ReplyContext,
+} from "@/lib/api";
 import type { Persona } from "@/lib/data";
 import {
   extractEmailDisplayName,
@@ -16,6 +21,7 @@ import { IconMail, IconRefresh } from "../icons";
 type Props = {
   initialReplyContext: ReplyContext;
   messageId: string;
+  initialDraftSession?: DraftSession | null;
 };
 
 type ErrorProps = {
@@ -61,17 +67,34 @@ export function ReplyComposeErrorRoute({
   const retryPath = personaId
     ? `${composeHref(personaId)}/reply/${encodedMessageId}`
     : `/compose/reply/${encodedMessageId}`;
+  const [reauthorizing, setReauthorizing] = useState(false);
+  const reauthorizingRef = useRef(false);
 
   const reauthorizeGoogle = async () => {
+    if (reauthorizingRef.current) return;
+    reauthorizingRef.current = true;
+    setReauthorizing(true);
     try {
       window.location.href = await startGoogleLogin(retryPath);
     } catch (startError) {
+      reauthorizingRef.current = false;
+      setReauthorizing(false);
       mello.showToast(
         startError instanceof Error
           ? startError.message
           : "Google 재동의를 시작하지 못했습니다.",
       );
     }
+  };
+
+  const refreshMessage = () => {
+    if (reauthorizingRef.current) return;
+    router.refresh();
+  };
+
+  const goInbox = () => {
+    if (reauthorizingRef.current) return;
+    router.push("/inbox");
   };
 
   return (
@@ -92,7 +115,8 @@ export function ReplyComposeErrorRoute({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => router.refresh()}
+            onClick={refreshMessage}
+            disabled={reauthorizing}
           >
             <IconRefresh size={13} />
             다시 시도
@@ -102,14 +126,16 @@ export function ReplyComposeErrorRoute({
               type="button"
               className="btn-primary"
               onClick={() => void reauthorizeGoogle()}
+              disabled={reauthorizing}
             >
-              Google 재동의
+              {reauthorizing ? "재동의 중" : "Google 재동의"}
             </button>
           )}
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => router.push("/inbox")}
+            onClick={goInbox}
+            disabled={reauthorizing}
           >
             <IconMail size={13} />
             받은편지함
@@ -120,7 +146,11 @@ export function ReplyComposeErrorRoute({
   );
 }
 
-export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
+export function ReplyComposeRoute({
+  initialReplyContext,
+  messageId,
+  initialDraftSession = null,
+}: Props) {
   const router = useRouter();
   const mello = useMello();
   const [brief, setBrief] = useState("");
@@ -218,12 +248,15 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
     setReplyContext(null);
     if (mello.selectedId) {
       router.push(composeHref(mello.selectedId));
+    } else {
+      router.push("/compose");
     }
   };
 
   return (
     <ComposerScreen
       personas={mello.personas}
+      history={mello.history}
       format={mello.format}
       onToast={mello.showToast}
       selectedId={mello.selectedId}
@@ -238,6 +271,7 @@ export function ReplyComposeRoute({ initialReplyContext, messageId }: Props) {
       onClearReplyContext={clearReplyContext}
       onHistoryCreated={mello.replaceHistory}
       onHistoryUpdated={mello.replaceHistory}
+      initialDraftSession={initialDraftSession}
     />
   );
 }

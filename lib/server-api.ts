@@ -11,6 +11,8 @@ import {
 import {
   DEFAULT_GMAIL_PAGE_SIZE,
   normalizeGmailPageSize,
+  type DraftChatMessage,
+  type DraftSession,
   type GmailMessage,
   type GmailMessageDetail,
   type MeResponse,
@@ -28,6 +30,10 @@ const EMPTY_FORMAT: MailFormat = {
   language: "",
 };
 
+export type InitialLoadErrors = Partial<
+  Record<"personas" | "history" | "format", string>
+>;
+
 export type InitialState =
   | { auth: "out" }
   | {
@@ -36,6 +42,7 @@ export type InitialState =
       personas: Persona[];
       history: HistoryItem[];
       format: MailFormat;
+      errors: InitialLoadErrors;
     };
 
 export type ServerDataResult<T> =
@@ -88,17 +95,52 @@ export const getServerInitial = cache(async (): Promise<InitialState> => {
     return { auth: "out" };
   }
 
-  const [personas, history, format] = await Promise.all([
+  const [personasResult, historyResult, formatResult] = await Promise.all([
     fetchJson<Persona[]>("/personas", header)
       .then(normalizePersonas)
-      .catch(() => [] as Persona[]),
-    fetchJson<HistoryItem[]>("/history", header).catch(
-      () => [] as HistoryItem[],
-    ),
-    fetchJson<MailFormat>("/format", header).catch(() => EMPTY_FORMAT),
+      .then((data) => ({ ok: true as const, data }))
+      .catch((error: unknown) => ({
+        ok: false as const,
+        data: [] as Persona[],
+        error:
+          error instanceof Error
+            ? error.message
+            : "사람 목록을 불러오지 못했습니다.",
+      })),
+    fetchJson<HistoryItem[]>("/history", header)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((error: unknown) => ({
+        ok: false as const,
+        data: [] as HistoryItem[],
+        error:
+          error instanceof Error
+            ? error.message
+            : "히스토리를 불러오지 못했습니다.",
+      })),
+    fetchJson<MailFormat>("/format", header)
+      .then((data) => ({ ok: true as const, data }))
+      .catch((error: unknown) => ({
+        ok: false as const,
+        data: EMPTY_FORMAT,
+        error:
+          error instanceof Error
+            ? error.message
+            : "메일 형식을 불러오지 못했습니다.",
+      })),
   ]);
+  const errors: InitialLoadErrors = {};
+  if (!personasResult.ok) errors.personas = personasResult.error;
+  if (!historyResult.ok) errors.history = historyResult.error;
+  if (!formatResult.ok) errors.format = formatResult.error;
 
-  return { auth: "in", me, personas, history, format };
+  return {
+    auth: "in",
+    me,
+    personas: personasResult.data,
+    history: historyResult.data,
+    format: formatResult.data,
+    errors,
+  };
 });
 
 type GmailMessageQuery = {
@@ -180,6 +222,34 @@ export async function getServerGmailMessage(
         error instanceof Error
           ? error.message
           : "메일 원문을 불러오지 못했습니다.",
+    };
+  }
+}
+
+export async function getServerDraftSession(
+  draftId?: string | null,
+): Promise<ServerDataResult<DraftSession | null>> {
+  const id = draftId?.trim();
+  if (!id) return { ok: true, data: null };
+
+  const header = cookieHeader();
+  try {
+    const [history, messages] = await Promise.all([
+      fetchJson<HistoryItem>(`/history/${encodeURIComponent(id)}`, header),
+      fetchJson<DraftChatMessage[]>(
+        `/history/${encodeURIComponent(id)}/draft/messages`,
+        header,
+      ),
+    ]);
+    return { ok: true, data: { history, messages } };
+  } catch (error) {
+    return {
+      ok: false,
+      data: null,
+      error:
+        error instanceof Error
+          ? error.message
+          : "저장된 초안을 불러오지 못했습니다.",
     };
   }
 }
