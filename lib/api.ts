@@ -104,6 +104,16 @@ export type GeneratedDraft = {
   history: HistoryItem | null;
 };
 
+export type DraftChatMessage = {
+  id: string;
+  historyId: string;
+  role: "user" | "assistant";
+  content: string;
+  subject?: string | null;
+  body?: string | null;
+  createdAt: string;
+};
+
 export type GeneratePayload = {
   brief: string;
   tone: number;
@@ -155,6 +165,13 @@ export type HistoryDraftPatchPayload = {
   subject?: string;
   body?: string;
 };
+
+export type DraftRevisionResponse = {
+  history: HistoryItem;
+  messages: DraftChatMessage[];
+};
+
+export type DraftSession = DraftRevisionResponse;
 
 export type SendResponse = {
   id: string;
@@ -334,6 +351,18 @@ export const api = {
     apiJson<HistoryItem>(`/history/${encodeURIComponent(id)}/draft/reset`, {
       method: "POST",
     }),
+  historyDraftMessages: (id: string) =>
+    apiJson<DraftChatMessage[]>(
+      `/history/${encodeURIComponent(id)}/draft/messages`,
+    ),
+  reviseHistoryDraft: (id: string, message: string) =>
+    apiJson<DraftRevisionResponse>(
+      `/history/${encodeURIComponent(id)}/draft/revise`,
+      {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      },
+    ),
   format: () => apiJson<MailFormat>("/format"),
   updateFormat: (payload: Partial<MailFormat>) =>
     apiJson<MailFormat>("/format", {
