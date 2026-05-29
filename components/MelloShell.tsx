@@ -31,6 +31,7 @@ import {
 } from "@/lib/routes";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { ToastStack, enqueueToast, type ToastItem } from "./Toast";
 
 const TONE_PRESETS: Record<string, number> = {
@@ -415,6 +416,7 @@ export function MelloShell({
           />
 
           <div className="main-scroll thin-scroll">{children}</div>
+          <MobileBottomNav route={route} />
           <ToastStack items={toasts} />
         </main>
       </div>
