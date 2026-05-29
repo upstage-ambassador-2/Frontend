@@ -246,7 +246,7 @@ export const MELLO_FORMAT: MailFormat = {
   greeting: "안녕하세요, 오지송입니다.",
   closing: "감사합니다.",
   structure: "인사 → 본문 → 요청 → 마무리",
-  bulletStyle: "· (가운뎃점)",
+  bulletStyle: "문단형 기본 · 목록 요청 시에만 사용",
   language: "한국어 · 존댓말 기본",
 };
 
